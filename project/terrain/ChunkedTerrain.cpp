@@ -58,22 +58,14 @@ void ChunkedTerrain::applyThemePreset(TerrainTheme t) {
         m_params.craterStrength = 0.15f;    // Slight bowl features for edge definition
         m_params.snowLine = 0.35f;          // Lower threshold for better contrast
         m_params.slopeRock = 0.42f;
-    } else if (t == TerrainTheme::GRASS) {
-        m_params.heightScale = 180.0f;   // Gentle hills
-        m_params.baseFreq = 0.003f;      // Very large features = vast open areas
-        m_params.detailFreq = 0.025f;    // Subtle detail
-        m_params.ridgeStrength = 0.3f;   // Minimal ridges = gentle slopes
+    } else { // GRASS
+        m_params.heightScale = 220.0f;      // More varied elevation
+        m_params.baseFreq = 0.0015f;        // Larger base features
+        m_params.detailFreq = 0.045f;       // More micro-detail
+        m_params.ridgeStrength = 0.45f;     // Subtle ridges for interest
         m_params.craterStrength = 0.0f;
-        m_params.snowLine = 2.0f;        // No snow - impossible to reach
-        m_params.slopeRock = 0.65f;
-    } else { // CRATER
-        m_params.heightScale = 260.0f;
-        m_params.baseFreq = 0.008f;
-        m_params.detailFreq = 0.085f;
-        m_params.ridgeStrength = 1.1f;
-        m_params.craterStrength = 1.0f;
-        m_params.snowLine = 0.98f;
-        m_params.slopeRock = 0.55f;
+        m_params.snowLine = 10.0f;          // Never show snow
+        m_params.slopeRock = 0.58f;         // Rock on steeper slopes
     }
 }
 
@@ -127,68 +119,44 @@ void ChunkedTerrain::ensureChunksAround(const glm::ivec2& center) {
 }
 
 float ChunkedTerrain::heightAtRaw(float wx, float wz) const {
-    // Base fBm-ish noise using perlin
-    float base = glm::perlin(glm::vec2(wx * m_params.baseFreq, wz * m_params.baseFreq));
-    float detail = glm::perlin(glm::vec2(wx * m_params.detailFreq + 31.3f, wz * m_params.detailFreq - 18.7f));
-
-    // Normalize-ish perlin output [-1,1] to [0,1]
-    float h = 0.5f + 0.5f * (0.70f * base + 0.30f * detail);
+    // Multi-octave fBm for realistic terrain
+    float amplitude = 1.0f;
+    float frequency = m_params.baseFreq;
+    float height = 0.0f;
+    float maxValue = 0.0f;
     
-    // Flatten mid-range values to create more plains
-    float flatZone = 0.5f;
-    float flatRadius = 0.25f;
-    float distFromFlat = std::abs(h - flatZone);
-    if (distFromFlat < flatRadius) {
-        float flatFactor = 1.0f - (distFromFlat / flatRadius);
-        flatFactor = flatFactor * flatFactor; // ease
-        h = glm::mix(h, flatZone, flatFactor * 0.7f);
+    // 5 octaves for detail
+    for (int i = 0; i < 5; i++) {
+        // Domain warping - offset noise lookup
+        float warpStrength = 30.0f;
+        float wx_warped = wx + glm::perlin(glm::vec2(wx * 0.001f, wz * 0.001f)) * warpStrength;
+        float wz_warped = wz + glm::perlin(glm::vec2(wx * 0.001f + 100.0f, wz * 0.001f)) * warpStrength;
+        
+        float noiseVal = glm::perlin(glm::vec2(wx_warped * frequency, wz_warped * frequency));
+        height += noiseVal * amplitude;
+        maxValue += amplitude;
+        
+        amplitude *= 0.5f;  // persistence
+        frequency *= 2.0f;  // lacunarity
     }
-
-    // Ridge: make peaks by folding (but gentler)
-    float ridge = 1.0f - std::abs(2.0f * h - 1.0f);
-    ridge = ridge * ridge * ridge; // smoother peaks
-    h = glm::mix(h, glm::max(h, ridge), m_params.ridgeStrength);
-
-    // Craters: hashed grid + radial bowl
-    if (m_params.craterStrength > 0.001f) {
-        // Grid cell size for crater centers
-        float cell = 260.0f;
-        int gx = (int)std::floor(wx / cell);
-        int gz = (int)std::floor(wz / cell);
-
-        auto hash = [](int x, int z)->float {
-            int n = x * 374761393 + z * 668265263;
-            n = (n ^ (n >> 13)) * 1274126177;
-            n = n ^ (n >> 16);
-            return (n & 0x00FFFFFF) / float(0x01000000); // [0,1)
-        };
-
-        float rnd = hash(gx, gz);
-        // Some cells have a crater
-        if (rnd > 0.55f) {
-            float cx = (gx + 0.2f + 0.6f * hash(gx+11, gz+7)) * cell;
-            float cz = (gz + 0.2f + 0.6f * hash(gx+5,  gz+13)) * cell;
-
-            float dx = wx - cx;
-            float dz = wz - cz;
-            float r = std::sqrt(dx*dx + dz*dz);
-
-            float radius = 90.0f + 80.0f * hash(gx+3, gz+19);
-            float sigma = radius * 0.55f;
-
-            // Bowl
-            float bowl = std::exp(-(r*r) / (2.0f * sigma * sigma));
-            // Rim ring
-            float rim = std::exp(-((r - radius) * (r - radius)) / (2.0f * (0.20f*radius)*(0.20f*radius)));
-
-            // Apply: bowl subtracts height, rim adds
-            h -= 0.22f * bowl * m_params.craterStrength;
-            h += 0.10f * rim  * m_params.craterStrength;
-        }
+    
+    // Normalize to 0-1
+    height = (height / maxValue) * 0.5f + 0.5f;
+    
+    // Ridged multifractal for mountains (theme-dependent)
+    if (m_params.ridgeStrength > 0.01f) {
+        float ridge = 1.0f - std::abs(glm::perlin(glm::vec2(wx * 0.003f, wz * 0.003f)));
+        ridge = std::pow(ridge, 2.0f);
+        height = glm::mix(height, ridge, m_params.ridgeStrength);
     }
-
-    // Clamp and return
-    return glm::clamp(h, 0.0f, 1.0f);
+    
+    // Terracing for more interesting elevation bands
+    float terraceStrength = 0.15f;
+    float terraceFreq = 8.0f;
+    float terraced = std::floor(height * terraceFreq) / terraceFreq;
+    height = glm::mix(height, terraced, terraceStrength * height);
+    
+    return glm::clamp(height, 0.0f, 1.0f);
 }
 
 float ChunkedTerrain::heightAt(float wx, float wz) const {
@@ -221,6 +189,26 @@ float ChunkedTerrain::heightAt(float wx, float wz) const {
 
 float ChunkedTerrain::sampleHeightWorld(float x, float z) const {
     return heightAt(x, z);
+}
+
+float ChunkedTerrain::sampleHeightWorldSmooth(float x, float z) const {
+    // Get the four corner heights of the grid cell
+    float step = m_chunkWorldSize / float(m_vertsPerSide - 1);
+    int ix = int(std::floor(x / step));
+    int iz = int(std::floor(z / step));
+    
+    float h00 = heightAt(ix * step, iz * step);
+    float h10 = heightAt((ix + 1) * step, iz * step);
+    float h01 = heightAt(ix * step, (iz + 1) * step);
+    float h11 = heightAt((ix + 1) * step, (iz + 1) * step);
+    
+    // Bilinear interpolation
+    float fx = (x - ix * step) / step;
+    float fz = (z - iz * step) / step;
+    
+    float h0 = glm::mix(h00, h10, fx);
+    float h1 = glm::mix(h01, h11, fx);
+    return glm::mix(h0, h1, fz);
 }
 
 void ChunkedTerrain::buildChunk(TerrainChunk& c) {
