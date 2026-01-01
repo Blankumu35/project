@@ -23,7 +23,7 @@ uniform float uExposure;      // 1.0-1.4
 
 uniform float uSnowLine;      // 0..1
 uniform float uSlopeRock;     // 0..1
-uniform int   uThemeMode;     // 0 snow, 1 grass, 2 crater
+uniform int   uThemeMode;     // 0 snow, 1 grass
 
 // Simple tonemap
 vec3 tonemap(vec3 x) {
@@ -65,15 +65,11 @@ void main() {
     if (uThemeMode == 0) {
         // snow world: snow much earlier
         snowMask = smoothstep(uSnowLine - 0.10, uSnowLine + 0.06, vHeight01);
-    } else if (uThemeMode == 2) {
-        // crater world: minimal snow at very high peaks
-        snowMask = smoothstep(0.90, 1.00, vHeight01);
     }
     // grass world (uThemeMode == 1): no snow at all (snowMask stays 0.0)
 
-    // Lowlands mask (sand / dirt). Crater world shows more low dirt.
+    // Lowlands mask (sand / dirt)
     float lowMask = 1.0 - smoothstep(0.18, 0.38, vHeight01);
-    if (uThemeMode == 2) lowMask = 1.0 - smoothstep(0.25, 0.55, vHeight01);
 
     vec3 baseColor;
 
@@ -91,11 +87,6 @@ void main() {
 
         // Add snow on high areas
         baseColor = mix(withRock, snow, snowMask);
-
-        // Crater world: tint slightly warmer/ashy
-        if (uThemeMode == 2) {
-            baseColor *= vec3(1.08, 0.92, 0.85);
-        }
     } else {
         // Procedural fallback (NOT black/white)
         vec3 sand  = vec3(0.75, 0.70, 0.55);
@@ -106,8 +97,6 @@ void main() {
         vec3 lowMid = mix(grass, sand, lowMask);
         vec3 withRock = mix(lowMid, rock, rockMask);
         baseColor = mix(withRock, snow, snowMask);
-
-        if (uThemeMode == 2) baseColor *= vec3(1.15, 0.90, 0.80);
     }
 
     // Enhanced lighting with specular highlights
@@ -152,8 +141,7 @@ void main() {
     float dist = length(vWorldPos.xz);
     float fog = clamp(dist / 9000.0, 0.0, 1.0);
     vec3 fogColor = (uThemeMode == 0) ? vec3(0.75, 0.85, 0.95) :
-                    (uThemeMode == 1) ? vec3(0.60, 0.85, 0.70) :
-                                       vec3(0.75, 0.55, 0.45);
+                                        vec3(0.60, 0.85, 0.70);
     color = mix(color, fogColor, fog * 0.35);
 
     // Tonemap + gamma

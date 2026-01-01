@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <vector>
 
-enum class TerrainTheme { SNOW=0, GRASS=1, CRATER=2 };
+enum class TerrainTheme { SNOW=0, GRASS=1 };
 
 struct TerrainParams {
     float heightScale   = 180.0f;
@@ -47,6 +47,7 @@ public:
     void draw() const;
 
     float sampleHeightWorld(float x, float z) const;
+    float sampleHeightWorldSmooth(float x, float z) const;
 
     void setTheme(TerrainTheme t);
     TerrainTheme theme() const { return m_theme; }

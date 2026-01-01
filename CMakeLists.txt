@@ -42,6 +42,7 @@ add_executable(final_project
     project/particle.cpp        
     project/render/shader.cpp
     project/terrain/ChunkedTerrain.cpp
+    project/character/Bot.cpp
 )
 
 
