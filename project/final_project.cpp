@@ -1,6 +1,6 @@
 // ============================================================================
 // final_project.cpp (FULL)
-// - ChunkedTerrain with theme switching (SNOW / GRASS / CRATER)
+// - ChunkedTerrain with theme switching (SNOW / GRASS)
 // - Center button platform (isolated) to trigger world change (press E)
 // - "Speaker behind button" plays a simple beep melody (no extra libs)
 // - Terrain texture blending by height + slope (sand/grass/rock/snow)

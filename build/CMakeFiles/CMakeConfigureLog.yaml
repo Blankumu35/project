@@ -562,3 +562,195 @@ events:
       Running the CXX compiler's linker: "/usr/bin/ld" "-v"
       GNU ld (GNU Binutils for Ubuntu) 2.42
 ...
+
+---
+events:
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/Internal/CheckSourceCompiles.cmake:108 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/CheckCSourceCompiles.cmake:58 (cmake_check_source_compiles)"
+      - "/usr/local/share/cmake-3.31/Modules/FindThreads.cmake:97 (CHECK_C_SOURCE_COMPILES)"
+      - "/usr/local/share/cmake-3.31/Modules/FindThreads.cmake:163 (_threads_check_libc)"
+      - "external/glfw-3.1.2/CMakeLists.txt:95 (find_package)"
+    checks:
+      - "Performing Test CMAKE_HAVE_LIBC_PTHREAD"
+    directories:
+      source: "/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-XDZiXa"
+      binary: "/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-XDZiXa"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/runner/work/project/project/external/glfw-3.1.2/CMake/modules"
+    buildResult:
+      variable: "CMAKE_HAVE_LIBC_PTHREAD"
+      cached: true
+      stdout: |
+        Change Dir: '/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-XDZiXa'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_b8507/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_b8507.dir/build.make CMakeFiles/cmTC_b8507.dir/build
+        gmake[1]: Entering directory '/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-XDZiXa'
+        Building C object CMakeFiles/cmTC_b8507.dir/src.c.o
+        /usr/bin/cc -DCMAKE_HAVE_LIBC_PTHREAD   -o CMakeFiles/cmTC_b8507.dir/src.c.o -c /home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-XDZiXa/src.c
+        Linking C executable cmTC_b8507
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_b8507.dir/link.txt --verbose=1
+        /usr/bin/cc -rdynamic CMakeFiles/cmTC_b8507.dir/src.c.o -o cmTC_b8507
+        gmake[1]: Leaving directory '/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-XDZiXa'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/CheckLibraryExists.cmake:78 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/FindX11.cmake:693 (check_library_exists)"
+      - "external/glfw-3.1.2/CMakeLists.txt:259 (find_package)"
+    checks:
+      - "Looking for XOpenDisplay in /usr/lib/x86_64-linux-gnu/libX11.so"
+    directories:
+      source: "/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-yqMXq0"
+      binary: "/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-yqMXq0"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/runner/work/project/project/external/glfw-3.1.2/CMake/modules"
+    buildResult:
+      variable: "X11_LIB_X11_SOLO"
+      cached: true
+      stdout: |
+        Change Dir: '/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-yqMXq0'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_927d1/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_927d1.dir/build.make CMakeFiles/cmTC_927d1.dir/build
+        gmake[1]: Entering directory '/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-yqMXq0'
+        Building C object CMakeFiles/cmTC_927d1.dir/CheckFunctionExists.c.o
+        /usr/bin/cc   -DCHECK_FUNCTION_EXISTS=XOpenDisplay -o CMakeFiles/cmTC_927d1.dir/CheckFunctionExists.c.o -c /home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-yqMXq0/CheckFunctionExists.c
+        Linking C executable cmTC_927d1
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_927d1.dir/link.txt --verbose=1
+        /usr/bin/cc  -DCHECK_FUNCTION_EXISTS=XOpenDisplay -rdynamic CMakeFiles/cmTC_927d1.dir/CheckFunctionExists.c.o -o cmTC_927d1  /usr/lib/x86_64-linux-gnu/libX11.so
+        gmake[1]: Leaving directory '/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-yqMXq0'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/CheckFunctionExists.cmake:93 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/FindX11.cmake:708 (check_function_exists)"
+      - "external/glfw-3.1.2/CMakeLists.txt:259 (find_package)"
+    checks:
+      - "Looking for gethostbyname"
+    directories:
+      source: "/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-ZKo60F"
+      binary: "/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-ZKo60F"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/runner/work/project/project/external/glfw-3.1.2/CMake/modules"
+    buildResult:
+      variable: "CMAKE_HAVE_GETHOSTBYNAME"
+      cached: true
+      stdout: |
+        Change Dir: '/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-ZKo60F'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_682ba/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_682ba.dir/build.make CMakeFiles/cmTC_682ba.dir/build
+        gmake[1]: Entering directory '/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-ZKo60F'
+        Building C object CMakeFiles/cmTC_682ba.dir/CheckFunctionExists.c.o
+        /usr/bin/cc   -DCHECK_FUNCTION_EXISTS=gethostbyname -o CMakeFiles/cmTC_682ba.dir/CheckFunctionExists.c.o -c /home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-ZKo60F/CheckFunctionExists.c
+        Linking C executable cmTC_682ba
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_682ba.dir/link.txt --verbose=1
+        /usr/bin/cc  -DCHECK_FUNCTION_EXISTS=gethostbyname -rdynamic CMakeFiles/cmTC_682ba.dir/CheckFunctionExists.c.o -o cmTC_682ba
+        gmake[1]: Leaving directory '/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-ZKo60F'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/CheckFunctionExists.cmake:93 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/FindX11.cmake:722 (check_function_exists)"
+      - "external/glfw-3.1.2/CMakeLists.txt:259 (find_package)"
+    checks:
+      - "Looking for connect"
+    directories:
+      source: "/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-LKLwf3"
+      binary: "/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-LKLwf3"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/runner/work/project/project/external/glfw-3.1.2/CMake/modules"
+    buildResult:
+      variable: "CMAKE_HAVE_CONNECT"
+      cached: true
+      stdout: |
+        Change Dir: '/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-LKLwf3'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_6e4f7/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_6e4f7.dir/build.make CMakeFiles/cmTC_6e4f7.dir/build
+        gmake[1]: Entering directory '/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-LKLwf3'
+        Building C object CMakeFiles/cmTC_6e4f7.dir/CheckFunctionExists.c.o
+        /usr/bin/cc   -DCHECK_FUNCTION_EXISTS=connect -o CMakeFiles/cmTC_6e4f7.dir/CheckFunctionExists.c.o -c /home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-LKLwf3/CheckFunctionExists.c
+        Linking C executable cmTC_6e4f7
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_6e4f7.dir/link.txt --verbose=1
+        /usr/bin/cc  -DCHECK_FUNCTION_EXISTS=connect -rdynamic CMakeFiles/cmTC_6e4f7.dir/CheckFunctionExists.c.o -o cmTC_6e4f7
+        gmake[1]: Leaving directory '/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-LKLwf3'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/CheckFunctionExists.cmake:93 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/FindX11.cmake:731 (check_function_exists)"
+      - "external/glfw-3.1.2/CMakeLists.txt:259 (find_package)"
+    checks:
+      - "Looking for remove"
+    directories:
+      source: "/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-ggo7XP"
+      binary: "/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-ggo7XP"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/runner/work/project/project/external/glfw-3.1.2/CMake/modules"
+    buildResult:
+      variable: "CMAKE_HAVE_REMOVE"
+      cached: true
+      stdout: |
+        Change Dir: '/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-ggo7XP'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_b6fdf/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_b6fdf.dir/build.make CMakeFiles/cmTC_b6fdf.dir/build
+        gmake[1]: Entering directory '/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-ggo7XP'
+        Building C object CMakeFiles/cmTC_b6fdf.dir/CheckFunctionExists.c.o
+        /usr/bin/cc   -DCHECK_FUNCTION_EXISTS=remove -o CMakeFiles/cmTC_b6fdf.dir/CheckFunctionExists.c.o -c /home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-ggo7XP/CheckFunctionExists.c
+        Linking C executable cmTC_b6fdf
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_b6fdf.dir/link.txt --verbose=1
+        /usr/bin/cc  -DCHECK_FUNCTION_EXISTS=remove -rdynamic CMakeFiles/cmTC_b6fdf.dir/CheckFunctionExists.c.o -o cmTC_b6fdf
+        gmake[1]: Leaving directory '/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-ggo7XP'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/local/share/cmake-3.31/Modules/CheckFunctionExists.cmake:93 (try_compile)"
+      - "/usr/local/share/cmake-3.31/Modules/FindX11.cmake:740 (check_function_exists)"
+      - "external/glfw-3.1.2/CMakeLists.txt:259 (find_package)"
+    checks:
+      - "Looking for shmat"
+    directories:
+      source: "/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-SWYqQD"
+      binary: "/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-SWYqQD"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/runner/work/project/project/external/glfw-3.1.2/CMake/modules"
+    buildResult:
+      variable: "CMAKE_HAVE_SHMAT"
+      cached: true
+      stdout: |
+        Change Dir: '/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-SWYqQD'
+        
+        Run Build Command(s): /usr/local/bin/cmake -E env VERBOSE=1 /usr/bin/gmake -f Makefile cmTC_f8ac9/fast
+        /usr/bin/gmake  -f CMakeFiles/cmTC_f8ac9.dir/build.make CMakeFiles/cmTC_f8ac9.dir/build
+        gmake[1]: Entering directory '/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-SWYqQD'
+        Building C object CMakeFiles/cmTC_f8ac9.dir/CheckFunctionExists.c.o
+        /usr/bin/cc   -DCHECK_FUNCTION_EXISTS=shmat -o CMakeFiles/cmTC_f8ac9.dir/CheckFunctionExists.c.o -c /home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-SWYqQD/CheckFunctionExists.c
+        Linking C executable cmTC_f8ac9
+        /usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_f8ac9.dir/link.txt --verbose=1
+        /usr/bin/cc  -DCHECK_FUNCTION_EXISTS=shmat -rdynamic CMakeFiles/cmTC_f8ac9.dir/CheckFunctionExists.c.o -o cmTC_f8ac9
+        gmake[1]: Leaving directory '/home/runner/work/project/project/build/CMakeFiles/CMakeScratch/TryCompile-SWYqQD'
+        
+      exitCode: 0
+...
