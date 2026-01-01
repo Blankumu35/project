@@ -51,13 +51,13 @@ void ChunkedTerrain::setTheme(TerrainTheme t) {
 
 void ChunkedTerrain::applyThemePreset(TerrainTheme t) {
     if (t == TerrainTheme::SNOW) {
-        m_params.heightScale = 220.0f;
+        m_params.heightScale = 280.0f;      // More dramatic elevation changes
         m_params.baseFreq = 0.005f;
         m_params.detailFreq = 0.030f;
-        m_params.ridgeStrength = 1.5f;
-        m_params.craterStrength = 0.0f;
-        m_params.snowLine = 0.50f;
-        m_params.slopeRock = 0.45f;
+        m_params.ridgeStrength = 2.2f;      // Sharper peaks for defined edges
+        m_params.craterStrength = 0.15f;    // Slight bowl features for edge definition
+        m_params.snowLine = 0.35f;          // Lower threshold for better contrast
+        m_params.slopeRock = 0.42f;
     } else if (t == TerrainTheme::GRASS) {
         m_params.heightScale = 180.0f;   // Gentle hills
         m_params.baseFreq = 0.003f;      // Very large features = vast open areas

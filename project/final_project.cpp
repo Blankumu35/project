@@ -327,6 +327,114 @@ static void InitButtonMesh() {
 }
 
 // ---------------------------------------------------------------------------
+// Celestial sphere (sun/moon) mesh and rendering
+// ---------------------------------------------------------------------------
+static GLuint celestialVAO = 0, celestialVBO = 0, celestialEBO = 0;
+static GLuint celestialProgram = 0;
+static int celestialIndexCount = 0;
+
+static void InitCelestialSphere() {
+    // Generate sphere mesh (UV sphere)
+    const int latSegments = 16;
+    const int lonSegments = 32;
+    const float radius = 1.0f; // Will be scaled by model matrix
+    
+    std::vector<float> vertices;
+    std::vector<unsigned int> indices;
+    
+    // Generate vertices
+    for (int lat = 0; lat <= latSegments; ++lat) {
+        float theta = lat * glm::pi<float>() / latSegments;
+        float sinTheta = sin(theta);
+        float cosTheta = cos(theta);
+        
+        for (int lon = 0; lon <= lonSegments; ++lon) {
+            float phi = lon * 2.0f * glm::pi<float>() / lonSegments;
+            float sinPhi = sin(phi);
+            float cosPhi = cos(phi);
+            
+            float x = cosPhi * sinTheta;
+            float y = cosTheta;
+            float z = sinPhi * sinTheta;
+            
+            // Position
+            vertices.push_back(x * radius);
+            vertices.push_back(y * radius);
+            vertices.push_back(z * radius);
+        }
+    }
+    
+    // Generate indices
+    for (int lat = 0; lat < latSegments; ++lat) {
+        for (int lon = 0; lon < lonSegments; ++lon) {
+            int first = lat * (lonSegments + 1) + lon;
+            int second = first + lonSegments + 1;
+            
+            indices.push_back(first);
+            indices.push_back(second);
+            indices.push_back(first + 1);
+            
+            indices.push_back(second);
+            indices.push_back(second + 1);
+            indices.push_back(first + 1);
+        }
+    }
+    
+    celestialIndexCount = (int)indices.size();
+    
+    glGenVertexArrays(1, &celestialVAO);
+    glGenBuffers(1, &celestialVBO);
+    glGenBuffers(1, &celestialEBO);
+    
+    glBindVertexArray(celestialVAO);
+    
+    glBindBuffer(GL_ARRAY_BUFFER, celestialVBO);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
+    
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, celestialEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+    
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    
+    glBindVertexArray(0);
+    
+    // Simple emissive shader for sun/moon
+    const char* vs =
+        "#version 330 core\n"
+        "layout(location=0) in vec3 aPos;\n"
+        "uniform mat4 uMVP;\n"
+        "void main(){ gl_Position=uMVP*vec4(aPos,1.0); }";
+    
+    const char* fs =
+        "#version 330 core\n"
+        "out vec4 FragColor;\n"
+        "uniform vec3 uEmissiveColor;\n"
+        "void main(){ FragColor=vec4(uEmissiveColor, 1.0); }";
+    
+    auto compile = [](GLenum type, const char* src)->GLuint{
+        GLuint s=glCreateShader(type);
+        glShaderSource(s,1,&src,nullptr);
+        glCompileShader(s);
+        GLint ok=0; glGetShaderiv(s,GL_COMPILE_STATUS,&ok);
+        if(!ok){
+            char log[2048]; glGetShaderInfoLog(s,2048,nullptr,log);
+            std::cout<<"Celestial shader compile error:\n"<<log<<"\n";
+        }
+        return s;
+    };
+    
+    GLuint vsh=compile(GL_VERTEX_SHADER,vs);
+    GLuint fsh=compile(GL_FRAGMENT_SHADER,fs);
+    celestialProgram=glCreateProgram();
+    glAttachShader(celestialProgram,vsh);
+    glAttachShader(celestialProgram,fsh);
+    glLinkProgram(celestialProgram);
+    glDeleteShader(vsh);
+    glDeleteShader(fsh);
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 int main() {
@@ -420,6 +528,7 @@ int main() {
     // Simple player mesh + button mesh
     InitSimplePlayerMesh();
     InitButtonMesh();
+    InitCelestialSphere();
 
     // Particles (optional nice vibe)
     ParticleSystem spores(450);
@@ -574,6 +683,39 @@ int main() {
 
         terrain.draw();
 
+        // Draw celestial sphere (sun/moon) at light position
+        glUseProgram(celestialProgram);
+        GLint uCelestialMVP = glGetUniformLocation(celestialProgram, "uMVP");
+        GLint uEmissiveColor = glGetUniformLocation(celestialProgram, "uEmissiveColor");
+        
+        // Determine sun/moon color and size based on sky mode
+        glm::vec3 celestialColor;
+        float celestialScale;
+        if (currentSky == SkyMode::SUNNY) {
+            celestialColor = glm::vec3(1.0f, 0.95f, 0.8f); // Warm yellow/white sun
+            celestialScale = 200.0f; // Sun size
+        } else if (currentSky == SkyMode::CLOUDY) {
+            celestialColor = glm::vec3(0.85f, 0.88f, 0.92f); // Cool white/gray sun through clouds
+            celestialScale = 180.0f; // Slightly smaller
+        } else { // NIGHT
+            celestialColor = glm::vec3(0.9f, 0.95f, 1.0f); // Cool pale moon
+            celestialScale = 150.0f; // Moon size
+        }
+        
+        glm::mat4 mCelestial = glm::translate(glm::mat4(1.0f), lightPosition);
+        mCelestial = glm::scale(mCelestial, glm::vec3(celestialScale));
+        glm::mat4 mvpCelestial = vp * mCelestial;
+        
+        glUniformMatrix4fv(uCelestialMVP, 1, GL_FALSE, glm::value_ptr(mvpCelestial));
+        glUniform3fv(uEmissiveColor, 1, glm::value_ptr(celestialColor));
+        
+        // Disable depth test so sun/moon is always visible in sky
+        glDisable(GL_DEPTH_TEST);
+        glBindVertexArray(celestialVAO);
+        glDrawElements(GL_TRIANGLES, celestialIndexCount, GL_UNSIGNED_INT, 0);
+        glBindVertexArray(0);
+        glEnable(GL_DEPTH_TEST);
+
         // Draw spores (additive glow)
         // If your ParticleSystem expects you to pass the shader program, do that instead.
         // Here we assume your ParticleSystem uses its own program or you already integrated it.
@@ -631,6 +773,11 @@ int main() {
     if (buttonVAO) glDeleteVertexArrays(1, &buttonVAO);
     if (buttonVBO) glDeleteBuffers(1, &buttonVBO);
     if (buttonProgram) glDeleteProgram(buttonProgram);
+
+    if (celestialVAO) glDeleteVertexArrays(1, &celestialVAO);
+    if (celestialVBO) glDeleteBuffers(1, &celestialVBO);
+    if (celestialEBO) glDeleteBuffers(1, &celestialEBO);
+    if (celestialProgram) glDeleteProgram(celestialProgram);
 
     glfwTerminate();
     return 0;
