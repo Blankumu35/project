@@ -17,6 +17,7 @@
 
 #include <render/shader.h>
 #include "terrain/ChunkedTerrain.h"
+#include "character/Bot.h"
 
 #include "particle.h"
 #include "stb_image.h"
@@ -72,10 +73,11 @@ static bool isGrounded = false;
 
 // Input
 static bool keyW=false, keyS=false, keyA=false, keyD=false;
+static bool keySpace=false, keyShift=false;
 static bool keyEPressedEdge=false;  // edge-trigger "press E"
 
 // Lighting & Sky
-enum class SkyMode { SUNNY=0, CLOUDY=1, NIGHT=2 };
+enum class SkyMode { SUNNY=0, CLOUDY=1 };
 static SkyMode currentSky = SkyMode::SUNNY;
 static glm::vec3 lightPosition(0.0f, 4000.0f, 0.0f);
 static glm::vec3 lightIntensity(2.5e5f, 2.5e5f, 2.5e5f);
@@ -126,10 +128,8 @@ static void PlaySpeakerSoundForTheme(TerrainTheme theme) {
     // Update sky mode based on terrain
     if (theme == TerrainTheme::GRASS) {
         currentSky = SkyMode::SUNNY;
-    } else if (theme == TerrainTheme::SNOW) {
+    } else { // SNOW
         currentSky = SkyMode::CLOUDY;
-    } else { // CRATER
-        currentSky = SkyMode::NIGHT;
     }
     
 #ifdef _WIN32
@@ -139,10 +139,8 @@ static void PlaySpeakerSoundForTheme(TerrainTheme theme) {
 
     if (theme == TerrainTheme::SNOW) {
         tone(880, 90); tone(988, 90); tone(1175, 120); tone(988, 90); tone(880, 140);
-    } else if (theme == TerrainTheme::GRASS) {
+    } else { // GRASS
         tone(659, 120); tone(784, 120); tone(659, 120); tone(523, 180); tone(659, 120);
-    } else { // CRATER
-        tone(220, 120); tone(196, 120); tone(174, 180); tone(196, 120); tone(220, 200);
     }
 #else
     (void)theme;
@@ -234,6 +232,8 @@ static void key_callback(GLFWwindow* /*w*/, int key, int /*scancode*/, int actio
     if (key == GLFW_KEY_S) keyS = (action != GLFW_RELEASE);
     if (key == GLFW_KEY_A) keyA = (action != GLFW_RELEASE);
     if (key == GLFW_KEY_D) keyD = (action != GLFW_RELEASE);
+    if (key == GLFW_KEY_SPACE) keySpace = (action != GLFW_RELEASE);
+    if (key == GLFW_KEY_LEFT_SHIFT) keyShift = (action != GLFW_RELEASE);
 
     // Edge-trigger E
     if (key == GLFW_KEY_E && action == GLFW_PRESS) {
@@ -472,14 +472,13 @@ int main() {
     // Init terrain
     ChunkedTerrain terrain;
 
-    // Make it BIG. radius=5 => 11x11 chunks loaded around player.
-    // Verts per side 97 for smoother, more detailed hills.
-    const float CHUNK_SIZE  = 380.0f;
-    const int   VERTS_SIDE  = 97;
-    const int   RADIUS      = 5;
+    // Higher resolution for better detail
+    const float CHUNK_SIZE  = 320.0f;
+    const int   VERTS_SIDE  = 129;
+    const int   RADIUS      = 6;
     const float UV_TILING   = 8.0f;
 
-    terrain.init(CHUNK_SIZE, VERTS_SIDE, RADIUS, UV_TILING, 180.0f);
+    terrain.init(CHUNK_SIZE, VERTS_SIDE, RADIUS, UV_TILING, 220.0f);
     terrain.setTheme(TerrainTheme::GRASS); // start grass world
 
     // Terrain shader
@@ -529,6 +528,11 @@ int main() {
     InitSimplePlayerMesh();
     InitButtonMesh();
     InitCelestialSphere();
+    
+    // Initialize Bot character
+    Bot bot;
+    bot.initialize("../project/model/bot/bot.gltf");
+    bot.setPosition(playerPos);
 
     // Particles (optional nice vibe)
     ParticleSystem spores(450);
@@ -548,38 +552,45 @@ int main() {
         float dt = float(nowT - lastT);
         lastT = nowT;
 
-        // Movement
-        float speed = 240.0f * dt;
-        if (keyW) playerPos.z -= speed;
-        if (keyS) playerPos.z += speed;
-        if (keyA) playerPos.x -= speed;
-        if (keyD) playerPos.x += speed;
-
-        // Gravity
-        verticalVelocity -= 98.0f * dt;
-        playerPos.y += verticalVelocity * dt;
+        // Bot movement input
+        glm::vec3 moveInput(0.0f);
+        if (keyW) moveInput.z -= 1.0f;
+        if (keyS) moveInput.z += 1.0f;
+        if (keyA) moveInput.x -= 1.0f;
+        if (keyD) moveInput.x += 1.0f;
+        
+        // Normalize diagonal movement
+        if (glm::length(moveInput) > 0.01f) {
+            moveInput = glm::normalize(moveInput);
+        }
+        
+        // Apply sprint multiplier
+        if (keyShift && glm::length(moveInput) > 0.01f) {
+            moveInput *= 1.8f;  // Sprint is 1.8x faster
+        }
+        
+        // Get terrain height at bot position
+        float terrainHeight = terrain.sampleHeightWorldSmooth(bot.getPosition().x, bot.getPosition().z);
+        
+        // Update bot with collision
+        bot.update(dt, moveInput, keySpace, terrainHeight);
+        
+        // Update player position to follow bot (for legacy systems)
+        playerPos = bot.getPosition();
 
         // Terrain streaming
         terrain.update(playerPos);
 
-        // Ground collision
-        float ground = terrain.sampleHeightWorld(playerPos.x, playerPos.z);
-        if (playerPos.y <= ground + 2.0f) {
-            playerPos.y = ground + 2.0f;
-            verticalVelocity = 0.0f;
-            isGrounded = true;
-        } else {
-            isGrounded = false;
-        }
-
         // Button interaction
         float distToButton = glm::length(glm::vec2(playerPos.x - BUTTON_POS.x, playerPos.z - BUTTON_POS.z));
         if (distToButton < BUTTON_INTERACT_RADIUS && keyEPressedEdge) {
-            // Cycle theme
+            // Cycle theme between SNOW and GRASS only
             TerrainTheme next = terrain.theme();
-            if (next == TerrainTheme::SNOW) next = TerrainTheme::GRASS;
-            else if (next == TerrainTheme::GRASS) next = TerrainTheme::CRATER;
-            else next = TerrainTheme::SNOW;
+            if (next == TerrainTheme::SNOW) {
+                next = TerrainTheme::GRASS;
+            } else {
+                next = TerrainTheme::SNOW;
+            }
 
             terrain.setTheme(next);
             PlaySpeakerSoundForTheme(next);
@@ -587,14 +598,12 @@ int main() {
             // Update sky colors based on theme
             if (currentSky == SkyMode::SUNNY) {
                 glClearColor(0.52f, 0.72f, 0.92f, 1.0f); // Bright blue sunny sky
-            } else if (currentSky == SkyMode::CLOUDY) {
+            } else { // CLOUDY
                 glClearColor(0.65f, 0.70f, 0.75f, 1.0f); // Overcast gray sky
-            } else { // NIGHT
-                glClearColor(0.02f, 0.02f, 0.08f, 1.0f); // Dark night sky
             }
 
             std::cout << "Theme changed to "
-                      << (next==TerrainTheme::SNOW ? "SNOW" : (next==TerrainTheme::GRASS ? "GRASS" : "CRATER"))
+                      << (next==TerrainTheme::SNOW ? "SNOW" : "GRASS")
                       << "\n";
         }
         keyEPressedEdge = false;
@@ -642,12 +651,9 @@ int main() {
         if (currentSky == SkyMode::SUNNY) {
             currentLightIntensity = glm::vec3(3.0e5f, 2.9e5f, 2.6e5f); // Warm sunny light
             currentAmbient = 0.15f;
-        } else if (currentSky == SkyMode::CLOUDY) {
+        } else { // CLOUDY
             currentLightIntensity = glm::vec3(2.0e5f, 2.2e5f, 2.4e5f); // Cool overcast light
             currentAmbient = 0.18f; // More ambient in cloudy weather
-        } else { // NIGHT
-            currentLightIntensity = glm::vec3(0.8e5f, 0.9e5f, 1.2e5f); // Moonlight (cool, dim)
-            currentAmbient = 0.08f; // Darker nights
         }
         
         glUniform3fv(uLightIntLoc, 1, glm::value_ptr(currentLightIntensity));
@@ -694,12 +700,9 @@ int main() {
         if (currentSky == SkyMode::SUNNY) {
             celestialColor = glm::vec3(1.0f, 0.95f, 0.8f); // Warm yellow/white sun
             celestialScale = 200.0f; // Sun size
-        } else if (currentSky == SkyMode::CLOUDY) {
+        } else { // CLOUDY
             celestialColor = glm::vec3(0.85f, 0.88f, 0.92f); // Cool white/gray sun through clouds
             celestialScale = 180.0f; // Slightly smaller
-        } else { // NIGHT
-            celestialColor = glm::vec3(0.9f, 0.95f, 1.0f); // Cool pale moon
-            celestialScale = 150.0f; // Moon size
         }
         
         glm::mat4 mCelestial = glm::translate(glm::mat4(1.0f), lightPosition);
@@ -738,21 +741,14 @@ int main() {
 
         // Platform color changes based on theme
         glm::vec3 c = (terrain.theme()==TerrainTheme::SNOW)  ? glm::vec3(0.6f,0.9f,1.0f) :
-                      (terrain.theme()==TerrainTheme::GRASS) ? glm::vec3(0.2f,1.0f,0.4f) :
-                                                               glm::vec3(1.0f,0.35f,0.2f);
+                                                                glm::vec3(0.2f,1.0f,0.4f);
         glUniform3fv(uColor, 1, glm::value_ptr(c));
         glBindVertexArray(buttonVAO);
         glDrawArrays(GL_TRIANGLES, 0, 12); // platform + speaker quads
         glBindVertexArray(0);
 
-        // Draw simple player cube
-        glUseProgram(simpleProgram);
-        GLint uMVP2 = glGetUniformLocation(simpleProgram, "uMVP");
-        glm::mat4 mPlayer = glm::translate(glm::mat4(1.0f), playerPos);
-        glUniformMatrix4fv(uMVP2, 1, GL_FALSE, glm::value_ptr(vp * mPlayer));
-        glBindVertexArray(simpleVAO);
-        glDrawArrays(GL_TRIANGLES, 0, 12);
-        glBindVertexArray(0);
+        // Draw bot character
+        bot.render(view, proj, lightPosition, currentLightIntensity);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
