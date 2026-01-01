@@ -65,10 +65,11 @@ void main() {
     if (uThemeMode == 0) {
         // snow world: snow much earlier
         snowMask = smoothstep(uSnowLine - 0.10, uSnowLine + 0.06, vHeight01);
-    } else {
-        // other worlds: almost no snow
+    } else if (uThemeMode == 2) {
+        // crater world: minimal snow at very high peaks
         snowMask = smoothstep(0.90, 1.00, vHeight01);
     }
+    // grass world (uThemeMode == 1): no snow at all (snowMask stays 0.0)
 
     // Lowlands mask (sand / dirt). Crater world shows more low dirt.
     float lowMask = 1.0 - smoothstep(0.18, 0.38, vHeight01);

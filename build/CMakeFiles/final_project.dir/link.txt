@@ -1,3 +1,0 @@
-"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -E rm -f CMakeFiles\final_project.dir/objects.a
-C:\MinGW\bin\ar.exe qc CMakeFiles\final_project.dir/objects.a @CMakeFiles\final_project.dir\objects1.rsp
-C:\MinGW\bin\g++.exe -g -Wl,--whole-archive CMakeFiles\final_project.dir/objects.a -Wl,--no-whole-archive -o final_project.exe -Wl,--out-implib,libfinal_project.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\final_project.dir\linkLibs.rsp
