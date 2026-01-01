@@ -1,0 +1,15 @@
+C:/Users/Benil/College/4th Year/Computer Graphics/FinalProject/lab4/project/build/CMakeFiles/lab4_skeleton.dir
+C:/Users/Benil/College/4th Year/Computer Graphics/FinalProject/lab4/project/build/CMakeFiles/lab4_character.dir
+C:/Users/Benil/College/4th Year/Computer Graphics/FinalProject/lab4/project/build/CMakeFiles/final_project.dir
+C:/Users/Benil/College/4th Year/Computer Graphics/FinalProject/lab4/project/build/CMakeFiles/edit_cache.dir
+C:/Users/Benil/College/4th Year/Computer Graphics/FinalProject/lab4/project/build/CMakeFiles/rebuild_cache.dir
+C:/Users/Benil/College/4th Year/Computer Graphics/FinalProject/lab4/project/build/external/CMakeFiles/edit_cache.dir
+C:/Users/Benil/College/4th Year/Computer Graphics/FinalProject/lab4/project/build/external/CMakeFiles/rebuild_cache.dir
+C:/Users/Benil/College/4th Year/Computer Graphics/FinalProject/lab4/project/build/external/glad-3.3/CMakeFiles/glad.dir
+C:/Users/Benil/College/4th Year/Computer Graphics/FinalProject/lab4/project/build/external/glad-3.3/CMakeFiles/edit_cache.dir
+C:/Users/Benil/College/4th Year/Computer Graphics/FinalProject/lab4/project/build/external/glad-3.3/CMakeFiles/rebuild_cache.dir
+C:/Users/Benil/College/4th Year/Computer Graphics/FinalProject/lab4/project/build/external/glfw-3.1.2/CMakeFiles/edit_cache.dir
+C:/Users/Benil/College/4th Year/Computer Graphics/FinalProject/lab4/project/build/external/glfw-3.1.2/CMakeFiles/rebuild_cache.dir
+C:/Users/Benil/College/4th Year/Computer Graphics/FinalProject/lab4/project/build/external/glfw-3.1.2/src/CMakeFiles/glfw.dir
+C:/Users/Benil/College/4th Year/Computer Graphics/FinalProject/lab4/project/build/external/glfw-3.1.2/src/CMakeFiles/edit_cache.dir
+C:/Users/Benil/College/4th Year/Computer Graphics/FinalProject/lab4/project/build/external/glfw-3.1.2/src/CMakeFiles/rebuild_cache.dir
