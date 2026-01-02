@@ -39,12 +39,8 @@ target_link_libraries(lab4_character
 
 add_executable(final_project
     project/final_project.cpp
-    project/particle.cpp        
     project/render/shader.cpp
-    project/terrain/ChunkedTerrain.cpp
-    project/character/Bot.cpp
 )
-
 
 target_link_libraries(final_project
     ${OPENGL_LIBRARY}

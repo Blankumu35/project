@@ -23,27 +23,44 @@ uniform float uExposure;      // 1.0-1.4
 
 uniform float uSnowLine;      // 0..1
 uniform float uSlopeRock;     // 0..1
-uniform int   uThemeMode;     // 0 snow, 1 grass
+uniform int   uThemeMode;     // 0 snow, 1 grass (wonderland)
 
 // Simple tonemap
 vec3 tonemap(vec3 x) {
     return vec3(1.0) - exp(-x * uExposure);
 }
 
+// Hash function for procedural patterns
+float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+// 2D noise for grass variation
+float noise2D(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+    
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
 // Enhanced ambient occlusion based on slope and height
 float computeAO(float slope, float height01) {
-    // Darker in valleys and steep areas
-    float heightAO = smoothstep(0.0, 0.3, height01);
-    float slopeAO = 1.0 - slope * 0.3;
-    return mix(0.6, 1.0, heightAO * slopeAO);
+    float heightAO = smoothstep(0.0, 0.25, height01);
+    float slopeAO = 1.0 - slope * 0.25;
+    return mix(0.7, 1.0, heightAO * slopeAO);
 }
 
 // Soft contact shadows approximation
 float softShadow(vec3 N, vec3 L, float ndotl) {
-    // Fake soft shadows in crevices
     float shadow = 1.0;
-    if (ndotl < 0.1) {
-        shadow = smoothstep(0.0, 0.1, ndotl);
+    if (ndotl < 0.15) {
+        shadow = smoothstep(0.0, 0.15, ndotl);
     }
     return shadow;
 }
@@ -51,7 +68,7 @@ float softShadow(vec3 N, vec3 L, float ndotl) {
 void main() {
     vec3 N = normalize(vNormal);
     vec3 L = normalize(uLightPos - vWorldPos);
-    vec3 V = normalize(-vWorldPos); // View direction (assuming camera at origin for simplicity)
+    vec3 V = normalize(-vWorldPos);
 
     float ndotl = max(dot(N, L), 0.0);
 
@@ -59,69 +76,76 @@ void main() {
     float slope = 1.0 - clamp(N.y, 0.0, 1.0);
 
     // Texture masks
-    float rockMask = smoothstep(uSlopeRock - 0.08, uSlopeRock + 0.08, slope);
+    float rockMask = smoothstep(uSlopeRock - 0.1, uSlopeRock + 0.1, slope);
 
-    float snowMask = 0.0;
-    if (uThemeMode == 0) {
-        // snow world: snow much earlier
-        snowMask = smoothstep(uSnowLine - 0.10, uSnowLine + 0.06, vHeight01);
-    }
-    // grass world (uThemeMode == 1): no snow at all (snowMask stays 0.0)
-
-    // Lowlands mask (sand / dirt)
-    float lowMask = 1.0 - smoothstep(0.18, 0.38, vHeight01);
+    // Lowlands mask - meadow valleys
+    float lowMask = 1.0 - smoothstep(0.15, 0.35, vHeight01);
+    
+    // World position based variation for wonderland grass
+    vec2 worldUV = vWorldPos.xz * 0.01;
+    float grassVar = noise2D(worldUV * 3.0);
+    float grassVar2 = noise2D(worldUV * 7.0 + 50.0);
 
     vec3 baseColor;
 
-    if (uUseTextures) {
-        vec3 sand  = texture(uTexSand,  vUV).rgb;
-        vec3 grass = texture(uTexGrass, vUV).rgb;
-        vec3 rock  = texture(uTexRock,  vUV).rgb;
-        vec3 snow  = texture(uTexSnow,  vUV).rgb;
+    // === WONDERLAND GRASS THEME (only theme) ===
+    
+    // Rich varied grass colors
+    vec3 grassDark = vec3(0.15, 0.45, 0.12);    // Deep forest green
+    vec3 grassMid = vec3(0.25, 0.58, 0.18);     // Vibrant meadow green
+    vec3 grassLight = vec3(0.35, 0.68, 0.25);   // Sunlit grass
+    vec3 grassYellow = vec3(0.55, 0.65, 0.20);  // Dry grass patches
+    
+    // Blend grass variations based on noise
+    vec3 grass1 = mix(grassDark, grassMid, grassVar);
+    vec3 grass2 = mix(grassMid, grassLight, grassVar2);
+    vec3 grassBase = mix(grass1, grass2, sin(vWorldPos.x * 0.02 + vWorldPos.z * 0.015) * 0.5 + 0.5);
+    
+    // Add subtle yellow patches in sunny areas
+    float sunPatch = smoothstep(0.6, 0.8, grassVar * grassVar2 + vHeight01 * 0.3);
+    grassBase = mix(grassBase, grassYellow, sunPatch * 0.25);
+    
+    // Wildflower accent colors (very subtle)
+    vec3 flowerYellow = vec3(0.95, 0.85, 0.3);
+    vec3 flowerWhite = vec3(0.95, 0.95, 0.90);
+    vec3 flowerPurple = vec3(0.6, 0.4, 0.7);
+    
+    float flowerNoise = noise2D(worldUV * 25.0);
+    float flowerMask = smoothstep(0.85, 0.92, flowerNoise) * (1.0 - slope) * (1.0 - rockMask);
+    
+    vec3 flowerColor = mix(flowerYellow, flowerWhite, step(0.5, hash(floor(worldUV * 25.0))));
+    flowerColor = mix(flowerColor, flowerPurple, step(0.7, hash(floor(worldUV * 25.0 + 100.0))));
+    
+    grassBase = mix(grassBase, flowerColor, flowerMask * 0.6);
+    
+    // Valley meadow - slightly richer green
+    vec3 valleyGrass = vec3(0.18, 0.52, 0.15);
+    grassBase = mix(grassBase, valleyGrass, lowMask * 0.4);
+    
+    // Soft dirt paths in low areas
+    vec3 dirtPath = vec3(0.55, 0.45, 0.32);
+    float pathNoise = noise2D(worldUV * 4.0);
+    float pathMask = smoothstep(0.7, 0.85, pathNoise) * lowMask * 0.3;
+    grassBase = mix(grassBase, dirtPath, pathMask);
+    
+    // Rocky outcrops on steep slopes
+    vec3 rockColor = vec3(0.45, 0.42, 0.38);
+    vec3 mossyRock = mix(rockColor, vec3(0.35, 0.45, 0.30), 0.3);
+    
+    baseColor = mix(grassBase, mossyRock, rockMask);
 
-        // Start with grass/sand blend by height
-        vec3 lowMid = mix(grass, sand, lowMask);
-
-        // Add rock on slopes
-        vec3 withRock = mix(lowMid, rock, rockMask);
-
-        // Add snow on high areas
-        baseColor = mix(withRock, snow, snowMask);
-    } else {
-        // Procedural fallback (NOT black/white)
-        vec3 sand  = vec3(0.75, 0.70, 0.55);
-        vec3 grass = vec3(0.20, 0.55, 0.22);
-        vec3 rock  = vec3(0.35, 0.35, 0.38);
-        vec3 snow  = vec3(0.90, 0.95, 1.00);
-
-        vec3 lowMid = mix(grass, sand, lowMask);
-        vec3 withRock = mix(lowMid, rock, rockMask);
-        baseColor = mix(withRock, snow, snowMask);
-    }
-
-    // Enhanced lighting with specular highlights
-    // Diffuse component
+    // Enhanced lighting
     vec3 diffuse = uLightIntensity * ndotl;
     
-    // Specular component (Blinn-Phong)
+    // Specular (Blinn-Phong) - subtle for grass
     vec3 H = normalize(L + V);
     float ndoth = max(dot(N, H), 0.0);
-    float shininess = 32.0;
+    float shininess = 16.0;
+    float specStrength = 0.08; // Subtle grass shine
     
-    // Adjust specular based on material
-    float specStrength = 0.0;
-    if (snowMask > 0.5) {
-        specStrength = 0.4; // Snow is reflective
-        shininess = 64.0;
-    } else if (rockMask > 0.5) {
-        specStrength = 0.15; // Rock has some shine
-        shininess = 16.0;
-    } else if (lowMask > 0.5) {
-        specStrength = 0.05; // Sand/dirt is matte
-        shininess = 8.0;
-    } else {
-        specStrength = 0.1; // Grass slight shine from moisture
-        shininess = 16.0;
+    if (rockMask > 0.5) {
+        specStrength = 0.12;
+        shininess = 12.0;
     }
     
     vec3 specular = uLightIntensity * specStrength * pow(ndoth, shininess);
@@ -137,12 +161,14 @@ void main() {
     vec3 lighting = ambient + (diffuse + specular) * shadow;
     vec3 color = baseColor * lighting;
 
-    // Slight atmospheric fog to sell scale (optional)
+    // Atmospheric fog - dreamy wonderland feel
     float dist = length(vWorldPos.xz);
-    float fog = clamp(dist / 9000.0, 0.0, 1.0);
-    vec3 fogColor = (uThemeMode == 0) ? vec3(0.75, 0.85, 0.95) :
-                                        vec3(0.60, 0.85, 0.70);
-    color = mix(color, fogColor, fog * 0.35);
+    float fog = clamp(dist / 8000.0, 0.0, 1.0);
+    fog = fog * fog; // Quadratic falloff for more natural look
+    
+    // Wonderland: warm golden-green haze
+    vec3 fogColor = vec3(0.65, 0.78, 0.60);
+    color = mix(color, fogColor, fog * 0.4);
 
     // Tonemap + gamma
     color = tonemap(color);
