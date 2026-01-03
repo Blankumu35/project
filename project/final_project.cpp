@@ -52,13 +52,21 @@ static float portal4Y = -160.0f;
 // Mirror plane data for Hall of Mirrors world
 static GLuint mirrorVAO = 0, mirrorVBO = 0;
 static GLuint mirrorProgram = 0;
-static const float MIRROR_DISTANCE = 25.0f;  // Distance from center
-static const float MIRROR_WIDTH = 40.0f;
-static const float MIRROR_HEIGHT = 60.0f;
+static const float MIRROR_DISTANCE = 35.0f;  // Distance from center (moved to corners)
+static const float MIRROR_WIDTH = 50.0f;
+static const float MIRROR_HEIGHT = 70.0f;
+static const float MIRROR_TILT = 15.0f;  // Tilt angle in degrees
 
-// Mirror break state (0=left, 1=right, 2=front, 3=back, 4=top, 5=bottom)
-static bool mirrorBroken[6] = {false, false, false, false, false, false};
-static float mirrorBreakTime[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+// Framebuffer for mirror reflections (4 mirrors)
+static const int MIRROR_TEX_SIZE = 512;  // Resolution of reflection textures
+static GLuint mirrorFBO[4] = {0, 0, 0, 0};
+static GLuint mirrorTexture[4] = {0, 0, 0, 0};
+static GLuint mirrorDepthRBO[4] = {0, 0, 0, 0};
+
+// Mirror positions at corners (4 mirrors only - no top/bottom)
+// 0=front-left, 1=front-right, 2=back-left, 3=back-right
+static bool mirrorBroken[4] = {false, false, false, false};
+static float mirrorBreakTime[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 
 // World explosion state
 static bool worldExploding = false;
@@ -285,67 +293,173 @@ static void InitSkybox() {
             return skyColor;
         }
         
-        vec3 nightWorld(vec3 dir) {
+        // SPACE VERSE - Solar system, galaxies, and stars
+        vec3 spaceWorld(vec3 dir) {
             float y = dir.y;
-            float cloudScroll = uFallDistance * 0.001;
+            float cloudScroll = uFallDistance * 0.0005;
             
-            // Night sky gradient
-            vec3 skyTop = vec3(0.02, 0.02, 0.08);      // Deep dark blue
-            vec3 skyMid = vec3(0.05, 0.05, 0.15);      // Dark blue
-            vec3 horizon = vec3(0.1, 0.08, 0.2);       // Purple horizon
-            vec3 skyBottom = vec3(0.03, 0.03, 0.1);    // Dark below
+            // Deep space background - very dark with subtle color variations
+            vec3 spaceDeep = vec3(0.0, 0.0, 0.02);     // Nearly black
+            vec3 spaceMid = vec3(0.02, 0.01, 0.05);    // Deep purple hint
+            vec3 spaceNebula = vec3(0.05, 0.02, 0.08); // Nebula purple
             
-            vec3 skyColor;
-            if (y > 0.0) {
-                float t = pow(y, 0.5);
-                skyColor = mix(mix(horizon, skyMid, smoothstep(0.0, 0.3, y)), skyTop, t);
-            } else {
-                skyColor = mix(horizon, skyBottom, smoothstep(0.0, -0.5, y));
+            vec3 skyColor = mix(spaceDeep, spaceMid, abs(y) * 0.5);
+            
+            // Dense star field - multiple layers
+            float starField1 = stars(dir);
+            float starField2 = stars(dir * 2.3 + vec3(100.0));
+            float starField3 = stars(dir * 0.5 + vec3(50.0));
+            
+            // Colored stars
+            vec3 starColor1 = vec3(1.0, 1.0, 0.95) * starField1;  // White/yellow
+            vec3 starColor2 = vec3(0.8, 0.9, 1.0) * starField2 * 0.7;  // Blue stars
+            vec3 starColor3 = vec3(1.0, 0.7, 0.5) * starField3 * 0.5;  // Orange giants
+            skyColor += starColor1 + starColor2 + starColor3;
+            
+            // MILKY WAY GALAXY - band across the sky
+            float milkyWayAngle = dir.x * 0.5 + dir.z * 0.866;  // Diagonal band
+            float milkyWayDist = abs(dir.y - milkyWayAngle * 0.3);
+            float milkyWay = smoothstep(0.4, 0.0, milkyWayDist);
+            
+            // Milky way texture
+            vec3 mwPos = dir * 10.0 + vec3(cloudScroll * 0.5);
+            float mwNoise = fbm(mwPos * 3.0) * fbm(mwPos * 7.0 + vec3(10.0));
+            milkyWay *= (0.3 + mwNoise * 0.7);
+            
+            vec3 milkyWayColor = mix(vec3(0.15, 0.1, 0.2), vec3(0.25, 0.2, 0.35), mwNoise);
+            milkyWayColor += vec3(0.1, 0.15, 0.25) * stars(dir * 5.0) * 3.0;  // Extra stars in MW
+            skyColor += milkyWayColor * milkyWay * 0.6;
+            
+            // DISTANT GALAXIES - spiral shapes at various positions
+            // Galaxy 1 - Large spiral
+            vec3 galaxy1Dir = normalize(vec3(0.5, 0.3, -0.7));
+            float galaxy1Dot = dot(dir, galaxy1Dir);
+            if (galaxy1Dot > 0.97) {
+                float gDist = 1.0 - galaxy1Dot;
+                float gIntensity = smoothstep(0.03, 0.0, gDist);
+                vec2 gUV = vec2(dir.x - galaxy1Dir.x, dir.y - galaxy1Dir.y) * 80.0;
+                float spiral = sin(atan(gUV.y, gUV.x) * 2.0 + length(gUV) * 2.0 + uTime * 0.1);
+                spiral = spiral * 0.5 + 0.5;
+                float gCore = exp(-length(gUV) * 0.5);
+                vec3 galaxyColor = mix(vec3(0.8, 0.6, 0.9), vec3(0.4, 0.6, 1.0), spiral);
+                skyColor += galaxyColor * gIntensity * (gCore + spiral * 0.3) * 0.5;
             }
             
-            // Add stars
-            float starField = stars(dir);
-            skyColor += vec3(1.0, 1.0, 0.95) * starField;
-            
-            // Moon
-            vec3 moonDir = normalize(vec3(-0.4, 0.6, -0.5));
-            float moonDot = dot(dir, moonDir);
-            
-            // Moon disc
-            if (moonDot > 0.995) {
-                float moonDist = 1.0 - moonDot;
-                float moonIntensity = smoothstep(0.005, 0.0, moonDist);
-                vec3 moonColor = vec3(0.95, 0.95, 0.85);
-                
-                // Moon texture/craters
-                vec2 moonUV = vec2(dir.x - moonDir.x, dir.y - moonDir.y) * 50.0;
-                float craters = fbm(vec3(moonUV * 3.0, 0.0));
-                moonColor *= 0.8 + craters * 0.3;
-                
-                skyColor = mix(skyColor, moonColor, moonIntensity);
+            // Galaxy 2 - Smaller elliptical
+            vec3 galaxy2Dir = normalize(vec3(-0.6, 0.5, 0.4));
+            float galaxy2Dot = dot(dir, galaxy2Dir);
+            if (galaxy2Dot > 0.985) {
+                float gDist = 1.0 - galaxy2Dot;
+                float gIntensity = smoothstep(0.015, 0.0, gDist);
+                vec3 galaxyColor = vec3(1.0, 0.9, 0.7);
+                skyColor += galaxyColor * gIntensity * 0.4;
             }
             
-            // Moon glow
-            float moonGlow = max(moonDot, 0.0);
-            skyColor += vec3(0.2, 0.25, 0.4) * pow(moonGlow, 8.0) * 0.5;
-            skyColor += vec3(0.1, 0.15, 0.3) * pow(moonGlow, 2.0) * 0.3;
+            // NEBULAE - colorful gas clouds
+            vec3 nebulaPos = dir * 2.0 + vec3(cloudScroll);
+            float nebula1 = fbm(nebulaPos * 2.0);
+            float nebula2 = fbm(nebulaPos * 3.0 + vec3(50.0));
+            nebula1 = smoothstep(0.4, 0.7, nebula1) * smoothstep(0.9, 0.5, nebula1);
+            nebula2 = smoothstep(0.45, 0.75, nebula2) * smoothstep(0.95, 0.55, nebula2);
             
-            // Subtle dark clouds lit by moonlight
-            vec3 cloudPos = dir * 3.0 + vec3(uTime * 0.01, cloudScroll, uTime * 0.005);
-            float clouds = fbm(cloudPos * 1.5);
-            clouds = smoothstep(0.5, 0.8, clouds);
+            vec3 nebulaColor1 = vec3(0.8, 0.2, 0.5) * nebula1 * 0.15;  // Pink nebula
+            vec3 nebulaColor2 = vec3(0.2, 0.5, 0.9) * nebula2 * 0.12;  // Blue nebula
+            skyColor += nebulaColor1 + nebulaColor2;
             
-            float horizonFactor = 1.0 - abs(y);
-            clouds *= horizonFactor * horizonFactor * 0.5;
+            // THE SUN - bright star in distance
+            vec3 sunDir = normalize(vec3(0.8, -0.2, 0.5));
+            float sunDot = dot(dir, sunDir);
+            if (sunDot > 0.995) {
+                float sunDist = 1.0 - sunDot;
+                float sunIntensity = smoothstep(0.005, 0.0, sunDist);
+                vec3 sunColor = vec3(1.0, 0.95, 0.8);
+                skyColor = mix(skyColor, sunColor * 2.0, sunIntensity);
+            }
+            // Sun glow/corona
+            float sunGlow = max(sunDot, 0.0);
+            skyColor += vec3(1.0, 0.8, 0.4) * pow(sunGlow, 32.0) * 0.8;
+            skyColor += vec3(1.0, 0.6, 0.2) * pow(sunGlow, 8.0) * 0.3;
             
-            vec3 cloudColor = vec3(0.15, 0.15, 0.25);  // Dark clouds with moonlight tint
-            skyColor = mix(skyColor, cloudColor, clouds * 0.4);
+            // PLANETS
+            // Earth - blue marble
+            vec3 earthDir = normalize(vec3(-0.3, 0.1, 0.8));
+            float earthDot = dot(dir, earthDir);
+            if (earthDot > 0.992) {
+                float eDist = 1.0 - earthDot;
+                float eIntensity = smoothstep(0.008, 0.001, eDist);
+                vec2 eUV = vec2(dir.x - earthDir.x, dir.y - earthDir.y) * 150.0;
+                float continents = fbm(vec3(eUV + uTime * 0.02, 0.0));
+                vec3 earthColor = mix(vec3(0.1, 0.3, 0.8), vec3(0.2, 0.6, 0.3), smoothstep(0.4, 0.6, continents));
+                earthColor = mix(earthColor, vec3(1.0), smoothstep(0.7, 0.75, continents) * 0.8);  // Clouds
+                skyColor = mix(skyColor, earthColor, eIntensity);
+            }
             
-            // Aurora effect near horizon
-            float aurora = sin(dir.x * 5.0 + uTime * 0.3) * sin(dir.z * 3.0 + uTime * 0.2);
-            aurora = smoothstep(0.3, 1.0, aurora) * smoothstep(-0.2, 0.3, y) * smoothstep(0.6, 0.2, y);
-            vec3 auroraColor = mix(vec3(0.1, 0.8, 0.3), vec3(0.3, 0.2, 0.8), sin(dir.x * 3.0 + uTime) * 0.5 + 0.5);
-            skyColor += auroraColor * aurora * 0.3;
+            // Mars - red planet
+            vec3 marsDir = normalize(vec3(0.6, 0.4, -0.5));
+            float marsDot = dot(dir, marsDir);
+            if (marsDot > 0.994) {
+                float mDist = 1.0 - marsDot;
+                float mIntensity = smoothstep(0.006, 0.001, mDist);
+                vec2 mUV = vec2(dir.x - marsDir.x, dir.y - marsDir.y) * 200.0;
+                float terrain = fbm(vec3(mUV, 0.0)) * 0.3;
+                vec3 marsColor = vec3(0.8, 0.4, 0.2) + terrain * vec3(0.2, 0.1, 0.05);
+                skyColor = mix(skyColor, marsColor, mIntensity);
+            }
+            
+            // Jupiter - gas giant with bands
+            vec3 jupiterDir = normalize(vec3(-0.7, -0.3, -0.4));
+            float jupiterDot = dot(dir, jupiterDir);
+            if (jupiterDot > 0.985) {
+                float jDist = 1.0 - jupiterDot;
+                float jIntensity = smoothstep(0.015, 0.002, jDist);
+                vec2 jUV = vec2(dir.x - jupiterDir.x, dir.y - jupiterDir.y) * 60.0;
+                float bands = sin(jUV.y * 15.0 + fbm(vec3(jUV * 2.0, uTime * 0.1)) * 2.0) * 0.5 + 0.5;
+                vec3 jupiterColor = mix(vec3(0.8, 0.7, 0.5), vec3(0.9, 0.6, 0.4), bands);
+                // Great red spot
+                float spot = smoothstep(0.5, 0.0, length(jUV - vec2(1.0, 0.5)));
+                jupiterColor = mix(jupiterColor, vec3(0.9, 0.4, 0.3), spot * 0.7);
+                skyColor = mix(skyColor, jupiterColor, jIntensity);
+            }
+            
+            // Saturn - with rings!
+            vec3 saturnDir = normalize(vec3(0.2, 0.6, 0.7));
+            float saturnDot = dot(dir, saturnDir);
+            if (saturnDot > 0.98) {
+                float sDist = 1.0 - saturnDot;
+                float sIntensity = smoothstep(0.02, 0.005, sDist);
+                vec2 sUV = vec2(dir.x - saturnDir.x, dir.z - saturnDir.z) * 50.0;
+                float sUVy = (dir.y - saturnDir.y) * 50.0;
+                
+                // Planet body
+                float planetDist = length(vec2(sUV.x, sUVy * 2.5));
+                float planet = smoothstep(1.2, 0.8, planetDist);
+                vec3 saturnColor = vec3(0.9, 0.85, 0.6);
+                
+                // Rings
+                float ringDist = length(vec2(sUV.x, sUVy * 5.0));
+                float rings = smoothstep(1.5, 1.6, ringDist) * smoothstep(3.0, 2.8, ringDist);
+                rings *= (sin(ringDist * 20.0) * 0.3 + 0.7);  // Ring bands
+                rings *= step(0.3, abs(sUVy / (ringDist + 0.01)));  // Hide behind planet
+                vec3 ringColor = vec3(0.8, 0.75, 0.6);
+                
+                vec3 finalSaturn = mix(ringColor * rings, saturnColor, planet);
+                float saturnAlpha = max(planet, rings * 0.7);
+                skyColor = mix(skyColor, finalSaturn, sIntensity * saturnAlpha);
+            }
+            
+            // Shooting stars / meteors (occasional)
+            float meteorTime = floor(uTime * 0.3);
+            vec3 meteorDir = normalize(vec3(
+                sin(meteorTime * 12.34) * 0.5,
+                cos(meteorTime * 23.45) * 0.3 + 0.5,
+                sin(meteorTime * 34.56) * 0.5
+            ));
+            float meteorProgress = fract(uTime * 0.3);
+            vec3 meteorPos = meteorDir - normalize(vec3(1.0, -0.5, 0.5)) * meteorProgress * 0.3;
+            float meteorDot = dot(dir, normalize(meteorPos));
+            if (meteorDot > 0.9995 && meteorProgress < 0.5) {
+                skyColor += vec3(1.0, 0.9, 0.7) * (1.0 - meteorProgress * 2.0) * 2.0;
+            }
             
             return skyColor;
         }
@@ -621,7 +735,7 @@ static void InitSkybox() {
             vec3 dir = normalize(vDir);
             
             vec3 dayColor = dayWorld(dir);
-            vec3 nightColor = nightWorld(dir);
+            vec3 spaceColor = spaceWorld(dir);
             vec3 mirrorColor = mirrorWorld(dir);
             vec3 speedforceColor = speedforceWorld(dir);
             vec3 hallColor = hallOfMirrorsWorld(dir);
@@ -631,7 +745,7 @@ static void InitSkybox() {
             if (uWorldType == 0) {
                 finalColor = dayColor;
             } else if (uWorldType == 1) {
-                finalColor = nightColor;
+                finalColor = spaceColor;
             } else if (uWorldType == 2) {
                 finalColor = mirrorColor;
             } else if (uWorldType == 3) {
@@ -1205,7 +1319,35 @@ static void InitMirrors() {
     
     glBindVertexArray(0);
     
-    // Mirror shader - clear/transparent mirror
+    // Create framebuffers for each mirror
+    for (int i = 0; i < 4; i++) {
+        // Create framebuffer
+        glGenFramebuffers(1, &mirrorFBO[i]);
+        glBindFramebuffer(GL_FRAMEBUFFER, mirrorFBO[i]);
+        
+        // Create texture
+        glGenTextures(1, &mirrorTexture[i]);
+        glBindTexture(GL_TEXTURE_2D, mirrorTexture[i]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, MIRROR_TEX_SIZE, MIRROR_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mirrorTexture[i], 0);
+        
+        // Create depth renderbuffer
+        glGenRenderbuffers(1, &mirrorDepthRBO[i]);
+        glBindRenderbuffer(GL_RENDERBUFFER, mirrorDepthRBO[i]);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, MIRROR_TEX_SIZE, MIRROR_TEX_SIZE);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, mirrorDepthRBO[i]);
+        
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+            printf("Mirror framebuffer %d not complete!\n", i);
+        }
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    
+    // Mirror shader - uses reflection texture
     const char* vsSource = R"(
         #version 330 core
         layout(location = 0) in vec3 aPos;
@@ -1239,30 +1381,78 @@ static void InitMirrors() {
         
         uniform vec3 uCameraPos;
         uniform float uTime;
+        uniform sampler2D uReflectionTex;
+        uniform int uUseReflectionTex;
+        uniform int uMirrorType;  // 0=normal, 1=enlarged/magnified, 2=stretched/funhouse, 3=normal flipped
         
         void main() {
-            // Clear mirror - very subtle tint
-            vec3 baseColor = vec3(0.95, 0.97, 1.0);  // Almost white/clear
-            
             // Thin elegant frame border
-            float borderX = smoothstep(0.0, 0.015, vTexCoord.x) * smoothstep(1.0, 0.985, vTexCoord.x);
-            float borderY = smoothstep(0.0, 0.015, vTexCoord.y) * smoothstep(1.0, 0.985, vTexCoord.y);
+            float borderX = smoothstep(0.0, 0.02, vTexCoord.x) * smoothstep(1.0, 0.98, vTexCoord.x);
+            float borderY = smoothstep(0.0, 0.02, vTexCoord.y) * smoothstep(1.0, 0.98, vTexCoord.y);
             float border = 1.0 - (borderX * borderY);
             vec3 frameColor = vec3(0.75, 0.6, 0.25);  // Gold frame
             
-            // Subtle fresnel edge effect
-            vec3 V = normalize(uCameraPos - vWorldPos);
-            vec3 N = normalize(vNormal);
-            float fresnel = pow(1.0 - max(dot(V, N), 0.0), 4.0);
+            vec3 mirrorColor;
+            float alpha;
             
-            // Very subtle edge highlight
-            vec3 mirrorColor = baseColor + vec3(0.05) * fresnel;
+            if (uUseReflectionTex == 1 && border < 0.5) {
+                // Calculate distorted UV based on mirror type
+                vec2 reflectUV = vec2(vTexCoord.x, 1.0 - vTexCoord.y);
+                vec2 center = vec2(0.5, 0.5);
+                vec2 fromCenter = reflectUV - center;
+                
+                if (uMirrorType == 1) {
+                    // ENLARGED/MAGNIFIED - zoom into center (convex mirror effect)
+                    float zoom = 2.5;  // Magnification factor
+                    reflectUV = center + fromCenter / zoom;
+                    // Clamp to valid range
+                    reflectUV = clamp(reflectUV, 0.0, 1.0);
+                } else if (uMirrorType == 2) {
+                    // STRETCHED/FUNHOUSE - vertical stretch with wavy distortion
+                    float stretchY = 2.0;  // Vertical stretch
+                    float wave = sin(reflectUV.y * 6.28 + uTime * 2.0) * 0.05;
+                    reflectUV.x = center.x + (fromCenter.x + wave) * 0.7;
+                    reflectUV.y = center.y + fromCenter.y / stretchY;
+                    reflectUV = clamp(reflectUV, 0.0, 1.0);
+                } else if (uMirrorType == 3) {
+                    // NORMAL but horizontally flipped
+                    reflectUV.x = 1.0 - reflectUV.x;
+                }
+                // uMirrorType == 0 is normal, no modification needed
+                
+                mirrorColor = texture(uReflectionTex, reflectUV).rgb;
+                
+                // Add visual indicator for special mirrors
+                if (uMirrorType == 1) {
+                    // Slight golden tint for magnifying mirror
+                    mirrorColor = mix(mirrorColor, vec3(1.0, 0.95, 0.8), 0.1);
+                } else if (uMirrorType == 2) {
+                    // Slight purple tint for funhouse mirror
+                    mirrorColor = mix(mirrorColor, vec3(0.9, 0.8, 1.0), 0.15);
+                }
+                
+                // Subtle fresnel effect for realism
+                vec3 V = normalize(uCameraPos - vWorldPos);
+                vec3 N = normalize(vNormal);
+                float fresnel = pow(1.0 - max(dot(V, N), 0.0), 3.0);
+                mirrorColor = mix(mirrorColor, vec3(0.9, 0.95, 1.0), fresnel * 0.3);
+                
+                alpha = 0.95;  // Nearly opaque reflection
+            } else {
+                // Fallback clear mirror look
+                mirrorColor = vec3(0.85, 0.9, 0.95);
+                alpha = 0.3;
+            }
             
-            // Combine mirror and frame
+            // Combine mirror and frame - different frame colors per type
+            if (uMirrorType == 1) {
+                frameColor = vec3(0.85, 0.7, 0.2);  // Brighter gold for magnifying
+            } else if (uMirrorType == 2) {
+                frameColor = vec3(0.6, 0.4, 0.7);  // Purple for funhouse
+            }
+            
             vec3 finalColor = mix(mirrorColor, frameColor, border);
-            
-            // Very transparent in center, more opaque at frame
-            float alpha = mix(0.15, 0.9, border);
+            alpha = mix(alpha, 0.95, border);
             
             FragColor = vec4(finalColor, alpha);
         }
@@ -1355,8 +1545,105 @@ static void InitMirrors() {
     glDeleteShader(sfs);
 }
 
-// Check if all 4 side mirrors are broken (triggers explosion)
-static bool AllSideMirrorsBroken() {
+// Get mirror position and normal for a given mirror index
+static void GetMirrorInfo(int mirrorIndex, glm::vec3& outPos, glm::vec3& outNormal, float& outYaw) {
+    float cornerOffset = MIRROR_DISTANCE * 0.7f;
+    switch (mirrorIndex) {
+        case 0: // Front-left
+            outPos = glm::vec3(-cornerOffset, 0, -cornerOffset);
+            outNormal = glm::normalize(glm::vec3(1, 0, 1));
+            outYaw = 45.0f;
+            break;
+        case 1: // Front-right
+            outPos = glm::vec3(cornerOffset, 0, -cornerOffset);
+            outNormal = glm::normalize(glm::vec3(-1, 0, 1));
+            outYaw = -45.0f;
+            break;
+        case 2: // Back-left
+            outPos = glm::vec3(-cornerOffset, 0, cornerOffset);
+            outNormal = glm::normalize(glm::vec3(1, 0, -1));
+            outYaw = 135.0f;
+            break;
+        case 3: // Back-right
+            outPos = glm::vec3(cornerOffset, 0, cornerOffset);
+            outNormal = glm::normalize(glm::vec3(-1, 0, -1));
+            outYaw = -135.0f;
+            break;
+    }
+}
+
+// Render scene for mirror reflection (into framebuffer)
+static void RenderMirrorReflection(int mirrorIndex, const glm::vec3& cameraPos, const glm::mat4& proj,
+                                    GLuint skyboxProg, GLuint skyVAO, GLuint charProg, GLuint charVAO, 
+                                    int charIdxCount, float nowT, float totalFall) {
+    if (mirrorBroken[mirrorIndex]) return;
+    
+    glm::vec3 mirrorPos, mirrorNormal;
+    float mirrorYaw;
+    GetMirrorInfo(mirrorIndex, mirrorPos, mirrorNormal, mirrorYaw);
+    
+    // Calculate reflected camera position
+    glm::vec3 toCamera = cameraPos - mirrorPos;
+    float d = glm::dot(toCamera, mirrorNormal);
+    glm::vec3 reflectedCamPos = cameraPos - 2.0f * d * mirrorNormal;
+    
+    // Look at the character's reflection
+    glm::vec3 charWorldPos(characterPos.x, 0, characterPos.z);
+    glm::vec3 toChar = charWorldPos - mirrorPos;
+    float dChar = glm::dot(toChar, mirrorNormal);
+    glm::vec3 reflectedCharPos = charWorldPos - 2.0f * dChar * mirrorNormal;
+    
+    // Create view matrix looking from reflected camera at reflected character
+    glm::mat4 reflView = glm::lookAt(reflectedCamPos, reflectedCharPos, glm::vec3(0, 1, 0));
+    glm::mat4 reflVP = proj * reflView;
+    
+    // Bind framebuffer
+    glBindFramebuffer(GL_FRAMEBUFFER, mirrorFBO[mirrorIndex]);
+    glViewport(0, 0, MIRROR_TEX_SIZE, MIRROR_TEX_SIZE);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    
+    // Draw skybox
+    glDepthFunc(GL_LEQUAL);
+    glUseProgram(skyboxProg);
+    glm::mat4 skyView = glm::mat4(glm::mat3(reflView));
+    glm::mat4 skyVP = proj * skyView;
+    glUniformMatrix4fv(glGetUniformLocation(skyboxProg, "uVP"), 1, GL_FALSE, glm::value_ptr(skyVP));
+    glUniform1f(glGetUniformLocation(skyboxProg, "uTime"), nowT);
+    glUniform1f(glGetUniformLocation(skyboxProg, "uFallDistance"), totalFall);
+    glUniform1i(glGetUniformLocation(skyboxProg, "uWorldType"), currentWorld);
+    glUniform1f(glGetUniformLocation(skyboxProg, "uTransition"), 0.0f);
+    glBindVertexArray(skyVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+    glDepthFunc(GL_LESS);
+    
+    // Draw reflected character
+    glUseProgram(charProg);
+    
+    // Reflect the character's model matrix
+    glm::mat4 charModel = glm::mat4(1.0f);
+    charModel = glm::translate(charModel, reflectedCharPos);
+    // Mirror the rotation based on the mirror normal
+    charModel = glm::rotate(charModel, glm::radians(-characterRotX), glm::vec3(1, 0, 0));
+    charModel = glm::rotate(charModel, glm::radians(characterRotZ), glm::vec3(0, 0, 1));
+    // Flip along mirror normal axis
+    charModel = glm::scale(charModel, glm::vec3(1.5f, 1.5f, 1.5f));
+    
+    glUniformMatrix4fv(glGetUniformLocation(charProg, "uModel"), 1, GL_FALSE, glm::value_ptr(charModel));
+    glUniformMatrix4fv(glGetUniformLocation(charProg, "uView"), 1, GL_FALSE, glm::value_ptr(reflView));
+    glUniformMatrix4fv(glGetUniformLocation(charProg, "uProj"), 1, GL_FALSE, glm::value_ptr(proj));
+    glUniform3f(glGetUniformLocation(charProg, "uLightDir"), 0.3f, 0.9f, 0.2f);
+    glUniform1f(glGetUniformLocation(charProg, "uReflection"), 0.0f);
+    glUniform3fv(glGetUniformLocation(charProg, "uViewPos"), 1, glm::value_ptr(reflectedCamPos));
+    
+    glBindVertexArray(charVAO);
+    glDrawElements(GL_TRIANGLES, charIdxCount, GL_UNSIGNED_INT, 0);
+    
+    // Unbind framebuffer
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+// Check if all 4 mirrors are broken (triggers explosion)
+static bool AllMirrorsBroken() {
     return mirrorBroken[0] && mirrorBroken[1] && mirrorBroken[2] && mirrorBroken[3];
 }
 
@@ -1444,7 +1731,7 @@ static void BreakMirror(int mirrorIndex, glm::vec3 mirrorCenter, glm::vec3 mirro
     std::cout << "\a" << std::flush;
     
     // Check if all 4 side mirrors broken -> world explosion!
-    if (AllSideMirrorsBroken() && !worldExploding) {
+    if (AllMirrorsBroken() && !worldExploding) {
         TriggerWorldExplosion();
     }
 }
@@ -1489,36 +1776,49 @@ static void UpdateShatter(float dt) {
 static void CheckMirrorCollisions() {
     if (currentWorld != 4 || worldExploding) return;  // Only in Hall of Mirrors, not during explosion
     
-    float hitDist = 3.0f;  // Collision distance
+    float hitDist = 5.0f;  // Collision distance
+    float cornerOffset = MIRROR_DISTANCE * 0.7f;  // Diagonal position
     
-    // Left mirror (at -X)
-    if (!mirrorBroken[0] && characterPos.x < -MIRROR_DISTANCE + hitDist && 
-        abs(characterPos.z) < MIRROR_WIDTH/2 && abs(characterPos.y) < MIRROR_HEIGHT/2) {
-        BreakMirror(0, glm::vec3(-MIRROR_DISTANCE, 0, 0), glm::vec3(1, 0, 0));
+    // Front-left mirror (corner at -X, -Z)
+    if (!mirrorBroken[0]) {
+        float dx = characterPos.x - (-cornerOffset);
+        float dz = characterPos.z - (-cornerOffset);
+        if (sqrt(dx*dx + dz*dz) < hitDist && abs(characterPos.y) < MIRROR_HEIGHT/2) {
+            BreakMirror(0, glm::vec3(-cornerOffset, 0, -cornerOffset), glm::vec3(1, 0, 1));
+        }
     }
     
-    // Right mirror (at +X)
-    if (!mirrorBroken[1] && characterPos.x > MIRROR_DISTANCE - hitDist &&
-        abs(characterPos.z) < MIRROR_WIDTH/2 && abs(characterPos.y) < MIRROR_HEIGHT/2) {
-        BreakMirror(1, glm::vec3(MIRROR_DISTANCE, 0, 0), glm::vec3(-1, 0, 0));
+    // Front-right mirror (corner at +X, -Z)
+    if (!mirrorBroken[1]) {
+        float dx = characterPos.x - cornerOffset;
+        float dz = characterPos.z - (-cornerOffset);
+        if (sqrt(dx*dx + dz*dz) < hitDist && abs(characterPos.y) < MIRROR_HEIGHT/2) {
+            BreakMirror(1, glm::vec3(cornerOffset, 0, -cornerOffset), glm::vec3(-1, 0, 1));
+        }
     }
     
-    // Front mirror (at -Z)
-    if (!mirrorBroken[2] && characterPos.z < -MIRROR_DISTANCE + hitDist &&
-        abs(characterPos.x) < MIRROR_WIDTH/2 && abs(characterPos.y) < MIRROR_HEIGHT/2) {
-        BreakMirror(2, glm::vec3(0, 0, -MIRROR_DISTANCE), glm::vec3(0, 0, 1));
+    // Back-left mirror (corner at -X, +Z)
+    if (!mirrorBroken[2]) {
+        float dx = characterPos.x - (-cornerOffset);
+        float dz = characterPos.z - cornerOffset;
+        if (sqrt(dx*dx + dz*dz) < hitDist && abs(characterPos.y) < MIRROR_HEIGHT/2) {
+            BreakMirror(2, glm::vec3(-cornerOffset, 0, cornerOffset), glm::vec3(1, 0, -1));
+        }
     }
     
-    // Back mirror (at +Z)
-    if (!mirrorBroken[3] && characterPos.z > MIRROR_DISTANCE - hitDist &&
-        abs(characterPos.x) < MIRROR_WIDTH/2 && abs(characterPos.y) < MIRROR_HEIGHT/2) {
-        BreakMirror(3, glm::vec3(0, 0, MIRROR_DISTANCE), glm::vec3(0, 0, -1));
+    // Back-right mirror (corner at +X, +Z)
+    if (!mirrorBroken[3]) {
+        float dx = characterPos.x - cornerOffset;
+        float dz = characterPos.z - cornerOffset;
+        if (sqrt(dx*dx + dz*dz) < hitDist && abs(characterPos.y) < MIRROR_HEIGHT/2) {
+            BreakMirror(3, glm::vec3(cornerOffset, 0, cornerOffset), glm::vec3(-1, 0, -1));
+        }
     }
 }
 
 // Reset mirrors when entering hall of mirrors world
 static void ResetMirrors() {
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 4; i++) {
         mirrorBroken[i] = false;
         mirrorBreakTime[i] = 0.0f;
     }
@@ -1777,7 +2077,7 @@ int main() {
             char title[128];
             const char* worldName;
             if (currentWorld == 0) worldName = "DAY WORLD";
-            else if (currentWorld == 1) worldName = "NIGHT WORLD";
+            else if (currentWorld == 1) worldName = "SPACE VERSE";
             else if (currentWorld == 2) worldName = "CHROME DIMENSION";
             else if (currentWorld == 3) worldName = "SPEEDFORCE";
             else worldName = "HALL OF MIRRORS";
@@ -1868,6 +2168,20 @@ int main() {
         glm::mat4 vp = proj * view;
 
         // ---------------------------------------------------------------------
+        // Render mirror reflections to framebuffers (only in Hall of Mirrors)
+        // ---------------------------------------------------------------------
+        if (currentWorld == 4 && !worldExploding) {
+            glm::mat4 reflProj = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 500.0f);
+            for (int i = 0; i < 4; i++) {
+                RenderMirrorReflection(i, cameraPos, reflProj, skyboxProgram, skyboxVAO, 
+                                       characterProgram, characterVAO, characterIndexCount,
+                                       (float)nowT, totalFallDistance);
+            }
+            // Restore viewport
+            glViewport(0, 0, windowWidth, windowHeight);
+        }
+
+        // ---------------------------------------------------------------------
         // Render
         // ---------------------------------------------------------------------
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1903,7 +2217,8 @@ int main() {
         if (currentWorld == 0) {
             glUniform3f(glGetUniformLocation(characterProgram, "uLightDir"), 0.5f, 0.8f, 0.3f);  // Sunlight
         } else if (currentWorld == 1) {
-            glUniform3f(glGetUniformLocation(characterProgram, "uLightDir"), -0.4f, 0.6f, -0.5f);  // Moonlight
+            // Space verse - distant sun light with slight color shift
+            glUniform3f(glGetUniformLocation(characterProgram, "uLightDir"), 0.8f, -0.2f, 0.5f);  // Sun direction in space
         } else if (currentWorld == 2) {
             glUniform3f(glGetUniformLocation(characterProgram, "uLightDir"), 0.0f, 1.0f, 0.0f);  // Ambient mirror light
         } else if (currentWorld == 3) {
@@ -1974,102 +2289,16 @@ int main() {
         
         glDrawArrays(GL_TRIANGLE_FAN, 0, PORTAL_SEGMENTS + 2);
 
-        // Draw mirrors in Hall of Mirrors world - 6 MIRRORS (box formation)
+        // Draw mirrors in Hall of Mirrors world - 4 MIRRORS at corners with real reflections
+        // Mirror types: 0=ENLARGED (magnifying), 1=STRETCHED (funhouse), 2&3=NORMAL (flipped)
         if (currentWorld == 4 && !worldExploding) {
-            // Enable blending for reflection clipping fade
+            float cornerOffset = MIRROR_DISTANCE * 0.7f;  // Diagonal distance from center
+            
+            // Enable blending for mirror transparency
             glEnable(GL_BLEND);
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             
-            // First draw all reflections (behind the mirrors) - only for unbroken mirrors
-            glUseProgram(characterProgram);
-            glUniform1f(glGetUniformLocation(characterProgram, "uReflection"), 0.3f);
-            glUniform1f(glGetUniformLocation(characterProgram, "uMirrorBounds"), MIRROR_WIDTH / 2.0f);
-            glUniform3f(glGetUniformLocation(characterProgram, "uCharacterPos"), characterPos.x, 0.0f, characterPos.z);
-            glBindVertexArray(characterVAO);
-            
-            // LEFT MIRROR REFLECTION (mirror at -X) - index 0
-            if (!mirrorBroken[0]) {
-                glUniform1i(glGetUniformLocation(characterProgram, "uMirrorClipMode"), 1);  // Left mirror clips Z
-                glm::mat4 leftReflectModel = glm::mat4(1.0f);
-                float leftReflectX = -2.0f * MIRROR_DISTANCE - characterPos.x;
-                leftReflectModel = glm::translate(leftReflectModel, glm::vec3(leftReflectX, 0.0f, characterPos.z));
-                leftReflectModel = glm::rotate(leftReflectModel, glm::radians(-characterRotX), glm::vec3(1, 0, 0));
-                leftReflectModel = glm::rotate(leftReflectModel, glm::radians(-characterRotZ), glm::vec3(0, 0, 1));
-                leftReflectModel = glm::scale(leftReflectModel, glm::vec3(-1.5f, 1.5f, 1.5f));
-                glUniformMatrix4fv(glGetUniformLocation(characterProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(leftReflectModel));
-                glDrawElements(GL_TRIANGLES, characterIndexCount, GL_UNSIGNED_INT, 0);
-            }
-            
-            // RIGHT MIRROR REFLECTION (mirror at +X) - index 1
-            if (!mirrorBroken[1]) {
-                glUniform1i(glGetUniformLocation(characterProgram, "uMirrorClipMode"), 2);  // Right mirror clips Z
-                glm::mat4 rightReflectModel = glm::mat4(1.0f);
-                float rightReflectX = 2.0f * MIRROR_DISTANCE - characterPos.x;
-                rightReflectModel = glm::translate(rightReflectModel, glm::vec3(rightReflectX, 0.0f, characterPos.z));
-                rightReflectModel = glm::rotate(rightReflectModel, glm::radians(-characterRotX), glm::vec3(1, 0, 0));
-                rightReflectModel = glm::rotate(rightReflectModel, glm::radians(-characterRotZ), glm::vec3(0, 0, 1));
-                rightReflectModel = glm::scale(rightReflectModel, glm::vec3(-1.5f, 1.5f, 1.5f));
-                glUniformMatrix4fv(glGetUniformLocation(characterProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(rightReflectModel));
-                glDrawElements(GL_TRIANGLES, characterIndexCount, GL_UNSIGNED_INT, 0);
-            }
-            
-            // FRONT MIRROR REFLECTION (mirror at -Z, facing +Z) - index 2
-            if (!mirrorBroken[2]) {
-                glUniform1i(glGetUniformLocation(characterProgram, "uMirrorClipMode"), 3);  // Front mirror clips X
-                glm::mat4 frontReflectModel = glm::mat4(1.0f);
-                float frontReflectZ = -2.0f * MIRROR_DISTANCE - characterPos.z;
-                frontReflectModel = glm::translate(frontReflectModel, glm::vec3(characterPos.x, 0.0f, frontReflectZ));
-                frontReflectModel = glm::rotate(frontReflectModel, glm::radians(-characterRotX), glm::vec3(1, 0, 0));
-                frontReflectModel = glm::rotate(frontReflectModel, glm::radians(characterRotZ), glm::vec3(0, 0, 1));
-                frontReflectModel = glm::scale(frontReflectModel, glm::vec3(1.5f, 1.5f, -1.5f));
-                glUniformMatrix4fv(glGetUniformLocation(characterProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(frontReflectModel));
-                glDrawElements(GL_TRIANGLES, characterIndexCount, GL_UNSIGNED_INT, 0);
-            }
-            
-            // BACK MIRROR REFLECTION (mirror at +Z, facing -Z) - index 3
-            if (!mirrorBroken[3]) {
-                glUniform1i(glGetUniformLocation(characterProgram, "uMirrorClipMode"), 4);  // Back mirror clips X
-                glm::mat4 backReflectModel = glm::mat4(1.0f);
-                float backReflectZ = 2.0f * MIRROR_DISTANCE - characterPos.z;
-                backReflectModel = glm::translate(backReflectModel, glm::vec3(characterPos.x, 0.0f, backReflectZ));
-                backReflectModel = glm::rotate(backReflectModel, glm::radians(-characterRotX), glm::vec3(1, 0, 0));
-                backReflectModel = glm::rotate(backReflectModel, glm::radians(characterRotZ), glm::vec3(0, 0, 1));
-                backReflectModel = glm::scale(backReflectModel, glm::vec3(1.5f, 1.5f, -1.5f));
-                glUniformMatrix4fv(glGetUniformLocation(characterProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(backReflectModel));
-                glDrawElements(GL_TRIANGLES, characterIndexCount, GL_UNSIGNED_INT, 0);
-            }
-            
-            // TOP MIRROR REFLECTION (mirror at +Y, facing down) - index 4
-            if (!mirrorBroken[4]) {
-                glUniform1i(glGetUniformLocation(characterProgram, "uMirrorClipMode"), 0);  // No clip for top/bottom
-                glm::mat4 topReflectModel = glm::mat4(1.0f);
-                float topReflectY = 2.0f * MIRROR_DISTANCE;
-                topReflectModel = glm::translate(topReflectModel, glm::vec3(characterPos.x, topReflectY, characterPos.z));
-                topReflectModel = glm::rotate(topReflectModel, glm::radians(characterRotX), glm::vec3(1, 0, 0));
-                topReflectModel = glm::rotate(topReflectModel, glm::radians(characterRotZ), glm::vec3(0, 0, 1));
-                topReflectModel = glm::scale(topReflectModel, glm::vec3(1.5f, -1.5f, 1.5f));
-                glUniformMatrix4fv(glGetUniformLocation(characterProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(topReflectModel));
-                glDrawElements(GL_TRIANGLES, characterIndexCount, GL_UNSIGNED_INT, 0);
-            }
-            
-            // BOTTOM MIRROR REFLECTION (mirror at -Y, facing up) - index 5
-            if (!mirrorBroken[5]) {
-                glUniform1i(glGetUniformLocation(characterProgram, "uMirrorClipMode"), 0);  // No clip for top/bottom
-                glm::mat4 bottomReflectModel = glm::mat4(1.0f);
-                float bottomReflectY = -2.0f * MIRROR_DISTANCE;
-                bottomReflectModel = glm::translate(bottomReflectModel, glm::vec3(characterPos.x, bottomReflectY, characterPos.z));
-                bottomReflectModel = glm::rotate(bottomReflectModel, glm::radians(characterRotX), glm::vec3(1, 0, 0));
-                bottomReflectModel = glm::rotate(bottomReflectModel, glm::radians(characterRotZ), glm::vec3(0, 0, 1));
-                bottomReflectModel = glm::scale(bottomReflectModel, glm::vec3(1.5f, -1.5f, 1.5f));
-                glUniformMatrix4fv(glGetUniformLocation(characterProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(bottomReflectModel));
-                glDrawElements(GL_TRIANGLES, characterIndexCount, GL_UNSIGNED_INT, 0);
-            }
-            
-            // Reset uniforms
-            glUniform1f(glGetUniformLocation(characterProgram, "uReflection"), 0.0f);
-            glUniform1i(glGetUniformLocation(characterProgram, "uMirrorClipMode"), 0);
-            
-            // Now draw the clear mirror planes - only unbroken
+            // Draw the mirror planes with reflection textures
             glUseProgram(mirrorProgram);
             glUniformMatrix4fv(glGetUniformLocation(mirrorProgram, "uView"), 1, GL_FALSE, glm::value_ptr(view));
             glUniformMatrix4fv(glGetUniformLocation(mirrorProgram, "uProj"), 1, GL_FALSE, glm::value_ptr(proj));
@@ -2078,56 +2307,67 @@ int main() {
             
             glBindVertexArray(mirrorVAO);
             
-            // LEFT mirror - index 0
+            // FRONT-LEFT mirror (corner at -X, -Z) - index 0 - ENLARGED/MAGNIFYING
             if (!mirrorBroken[0]) {
-                glm::mat4 leftMirrorModel = glm::mat4(1.0f);
-                leftMirrorModel = glm::translate(leftMirrorModel, glm::vec3(-MIRROR_DISTANCE, 0.0f, 0.0f));
-                leftMirrorModel = glm::rotate(leftMirrorModel, glm::radians(90.0f), glm::vec3(0, 1, 0));
-                glUniformMatrix4fv(glGetUniformLocation(mirrorProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(leftMirrorModel));
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, mirrorTexture[0]);
+                glUniform1i(glGetUniformLocation(mirrorProgram, "uReflectionTex"), 0);
+                glUniform1i(glGetUniformLocation(mirrorProgram, "uUseReflectionTex"), 1);
+                glUniform1i(glGetUniformLocation(mirrorProgram, "uMirrorType"), 1);  // Enlarged/magnifying
+                
+                glm::mat4 mirrorModel = glm::mat4(1.0f);
+                mirrorModel = glm::translate(mirrorModel, glm::vec3(-cornerOffset, 0.0f, -cornerOffset));
+                mirrorModel = glm::rotate(mirrorModel, glm::radians(45.0f), glm::vec3(0, 1, 0));  // Face center
+                mirrorModel = glm::rotate(mirrorModel, glm::radians(-MIRROR_TILT), glm::vec3(1, 0, 0));  // Tilt backward
+                glUniformMatrix4fv(glGetUniformLocation(mirrorProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(mirrorModel));
                 glDrawArrays(GL_TRIANGLES, 0, 6);
             }
             
-            // RIGHT mirror - index 1
+            // FRONT-RIGHT mirror (corner at +X, -Z) - index 1 - STRETCHED/FUNHOUSE
             if (!mirrorBroken[1]) {
-                glm::mat4 rightMirrorModel = glm::mat4(1.0f);
-                rightMirrorModel = glm::translate(rightMirrorModel, glm::vec3(MIRROR_DISTANCE, 0.0f, 0.0f));
-                rightMirrorModel = glm::rotate(rightMirrorModel, glm::radians(-90.0f), glm::vec3(0, 1, 0));
-                glUniformMatrix4fv(glGetUniformLocation(mirrorProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(rightMirrorModel));
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, mirrorTexture[1]);
+                glUniform1i(glGetUniformLocation(mirrorProgram, "uReflectionTex"), 0);
+                glUniform1i(glGetUniformLocation(mirrorProgram, "uUseReflectionTex"), 1);
+                glUniform1i(glGetUniformLocation(mirrorProgram, "uMirrorType"), 2);  // Stretched/funhouse
+                
+                glm::mat4 mirrorModel = glm::mat4(1.0f);
+                mirrorModel = glm::translate(mirrorModel, glm::vec3(cornerOffset, 0.0f, -cornerOffset));
+                mirrorModel = glm::rotate(mirrorModel, glm::radians(-45.0f), glm::vec3(0, 1, 0));  // Face center
+                mirrorModel = glm::rotate(mirrorModel, glm::radians(MIRROR_TILT), glm::vec3(1, 0, 0));  // Tilt forward
+                glUniformMatrix4fv(glGetUniformLocation(mirrorProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(mirrorModel));
                 glDrawArrays(GL_TRIANGLES, 0, 6);
             }
             
-            // FRONT mirror - index 2
+            // BACK-LEFT mirror (corner at -X, +Z) - index 2 - NORMAL (flipped)
             if (!mirrorBroken[2]) {
-                glm::mat4 frontMirrorModel = glm::mat4(1.0f);
-                frontMirrorModel = glm::translate(frontMirrorModel, glm::vec3(0.0f, 0.0f, -MIRROR_DISTANCE));
-                glUniformMatrix4fv(glGetUniformLocation(mirrorProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(frontMirrorModel));
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, mirrorTexture[2]);
+                glUniform1i(glGetUniformLocation(mirrorProgram, "uReflectionTex"), 0);
+                glUniform1i(glGetUniformLocation(mirrorProgram, "uUseReflectionTex"), 1);
+                glUniform1i(glGetUniformLocation(mirrorProgram, "uMirrorType"), 0);  // Normal
+                
+                glm::mat4 mirrorModel = glm::mat4(1.0f);
+                mirrorModel = glm::translate(mirrorModel, glm::vec3(-cornerOffset, 0.0f, cornerOffset));
+                mirrorModel = glm::rotate(mirrorModel, glm::radians(135.0f), glm::vec3(0, 1, 0));  // Face center
+                mirrorModel = glm::rotate(mirrorModel, glm::radians(MIRROR_TILT), glm::vec3(1, 0, 0));  // Tilt forward
+                glUniformMatrix4fv(glGetUniformLocation(mirrorProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(mirrorModel));
                 glDrawArrays(GL_TRIANGLES, 0, 6);
             }
             
-            // BACK mirror - index 3
+            // BACK-RIGHT mirror (corner at +X, +Z) - index 3 - NORMAL (flipped horizontally)
             if (!mirrorBroken[3]) {
-                glm::mat4 backMirrorModel = glm::mat4(1.0f);
-                backMirrorModel = glm::translate(backMirrorModel, glm::vec3(0.0f, 0.0f, MIRROR_DISTANCE));
-                backMirrorModel = glm::rotate(backMirrorModel, glm::radians(180.0f), glm::vec3(0, 1, 0));
-                glUniformMatrix4fv(glGetUniformLocation(mirrorProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(backMirrorModel));
-                glDrawArrays(GL_TRIANGLES, 0, 6);
-            }
-            
-            // TOP mirror - index 4
-            if (!mirrorBroken[4]) {
-                glm::mat4 topMirrorModel = glm::mat4(1.0f);
-                topMirrorModel = glm::translate(topMirrorModel, glm::vec3(0.0f, MIRROR_DISTANCE, 0.0f));
-                topMirrorModel = glm::rotate(topMirrorModel, glm::radians(90.0f), glm::vec3(1, 0, 0));
-                glUniformMatrix4fv(glGetUniformLocation(mirrorProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(topMirrorModel));
-                glDrawArrays(GL_TRIANGLES, 0, 6);
-            }
-            
-            // BOTTOM mirror - index 5
-            if (!mirrorBroken[5]) {
-                glm::mat4 bottomMirrorModel = glm::mat4(1.0f);
-                bottomMirrorModel = glm::translate(bottomMirrorModel, glm::vec3(0.0f, -MIRROR_DISTANCE, 0.0f));
-                bottomMirrorModel = glm::rotate(bottomMirrorModel, glm::radians(-90.0f), glm::vec3(1, 0, 0));
-                glUniformMatrix4fv(glGetUniformLocation(mirrorProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(bottomMirrorModel));
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, mirrorTexture[3]);
+                glUniform1i(glGetUniformLocation(mirrorProgram, "uReflectionTex"), 0);
+                glUniform1i(glGetUniformLocation(mirrorProgram, "uUseReflectionTex"), 1);
+                glUniform1i(glGetUniformLocation(mirrorProgram, "uMirrorType"), 3);  // Normal but horizontally flipped
+                
+                glm::mat4 mirrorModel = glm::mat4(1.0f);
+                mirrorModel = glm::translate(mirrorModel, glm::vec3(cornerOffset, 0.0f, cornerOffset));
+                mirrorModel = glm::rotate(mirrorModel, glm::radians(-135.0f), glm::vec3(0, 1, 0));  // Face center
+                mirrorModel = glm::rotate(mirrorModel, glm::radians(-MIRROR_TILT), glm::vec3(1, 0, 0));  // Tilt backward
+                glUniformMatrix4fv(glGetUniformLocation(mirrorProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(mirrorModel));
                 glDrawArrays(GL_TRIANGLES, 0, 6);
             }
             
