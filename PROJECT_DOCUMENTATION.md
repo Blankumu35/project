@@ -1,4 +1,26 @@
 # ENDLESS FREEFALL - Project Documentation
+#
+# Recent Changes & Updates
+## Major Changes
+- Implemented movement-based character animation and pose logic (arms, tilt, facing direction)
+- Added procedural texturing to the bot (metallic blue, panel lines, gold rivets, specular highlights)
+- Refactored pose logic for northward movement (reversed arm directions, close fingers for fist)
+- Added and later removed the "aura farming" mode (arms crossed, standing pose)
+- Improved shader code for stylized rendering
+- Modularized codebase for maintainability (split large files into logical modules)
+- Ensured compatibility with OpenGL fragment output (RGBA)
+
+## Step-by-Step Development History
+1. **Project Initialization**: Set up OpenGL context, window, and basic rendering pipeline. Imported GLTF model and initialized character state.
+2. **Movement & Animation**: Implemented movement controls (WASD, space, shift) and character pose logic based on movement direction. Added tilt and facing direction logic.
+3. **World Generation**: Developed five unique worlds (Day, Space Verse, Chrome Dimension, Speedforce, Hall of Mirrors) with procedural graphics and transitions.
+4. **Mirror Reflections**: Added framebuffer-based real-time reflections for the Hall of Mirrors world, including mirror breaking and shatter particle effects.
+5. **Shader Enhancements**: Created custom vertex and fragment shaders for the bot, including procedural metallic texturing, panel lines, rivets, and lighting effects.
+6. **Feature Refinement**: Iteratively refined character animation (arm poses, hand/finger logic, pose switching), added and removed special modes (aura farming), and improved input handling.
+7. **Codebase Refactoring**: Split large source files into smaller modules (character, world, mirror, camera, input) for better maintainability and readability.
+8. **Finalization**: Ensured all features were working, fixed compatibility issues (fragment shader output), and completed documentation.
+
+---
 
 ## Overview
 **Endless Freefall** is an OpenGL-based 3D graphics project featuring a character in perpetual freefall through multiple procedurally-generated worlds. The project demonstrates various computer graphics techniques including real-time rendering, shader programming, framebuffer-based reflections, particle systems, and procedural content generation.

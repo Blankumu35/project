@@ -10,6 +10,8 @@ layout(location = 4) in vec4 vertexWeights;  // skinning weights
 // Output data, to be interpolated for each fragment
 out vec3 worldPosition;
 out vec3 worldNormal;
+out vec2 fragUV;
+out vec3 localPos;  // For procedural texturing
 
 uniform mat4 MVP;
 
@@ -36,4 +38,6 @@ void main() {
     gl_Position   = MVP * skinnedPos;
     worldPosition = skinnedPos.xyz;
     worldNormal   = normalize(skinnedNormal);
+    fragUV = vertexUV;
+    localPos = vertexPosition;  // Original position for procedural texturing
 }
