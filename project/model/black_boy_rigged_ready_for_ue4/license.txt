@@ -1,0 +1,11 @@
+Model Information:
+* title:	Black Boy Rigged Ready For Ue4
+* source:	https://sketchfab.com/3d-models/black-boy-rigged-ready-for-ue4-c9ded09156c244a6b0c3a29820e7f42a
+* author:	MotionStudioArts (https://sketchfab.com/MotionStudioArts)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Black Boy Rigged Ready For Ue4" (https://sketchfab.com/3d-models/black-boy-rigged-ready-for-ue4-c9ded09156c244a6b0c3a29820e7f42a) by MotionStudioArts (https://sketchfab.com/MotionStudioArts) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

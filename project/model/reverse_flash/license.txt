@@ -1,0 +1,11 @@
+Model Information:
+* title:	Reverse Flash
+* source:	https://sketchfab.com/3d-models/reverse-flash-5a5ebd201efe4539923404d7e848dac0
+* author:	offthewall041 (https://sketchfab.com/offthewall041)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Reverse Flash" (https://sketchfab.com/3d-models/reverse-flash-5a5ebd201efe4539923404d7e848dac0) by offthewall041 (https://sketchfab.com/offthewall041) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

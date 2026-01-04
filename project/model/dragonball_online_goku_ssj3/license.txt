@@ -1,0 +1,11 @@
+Model Information:
+* title:	DragonBall Online Goku SSJ3
+* source:	https://sketchfab.com/3d-models/dragonball-online-goku-ssj3-a19df8fcd3ac4bfca38e5a5eb91d579a
+* author:	Nemix (https://sketchfab.com/nemix)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "DragonBall Online Goku SSJ3" (https://sketchfab.com/3d-models/dragonball-online-goku-ssj3-a19df8fcd3ac4bfca38e5a5eb91d579a) by Nemix (https://sketchfab.com/nemix) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
