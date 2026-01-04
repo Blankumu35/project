@@ -513,6 +513,37 @@ static AuraSystem auraSystem;
 // GLTF Bot Model (animated character with skinning)
 // ---------------------------------------------------------------------------
 struct MyBot {
+        // Store OpenGL texture IDs for each GLTF texture
+        std::vector<GLuint> gltfTextureIDs;
+
+        // Helper to load a texture from file (PNG)
+        GLuint loadTextureFromFile(const std::string& path) {
+            int w, h, comp;
+            unsigned char* data = stbi_load(path.c_str(), &w, &h, &comp, STBI_rgb_alpha);
+            if (!data) {
+                std::cerr << "Failed to load texture: " << path << std::endl;
+                return 0;
+            }
+            GLuint texID;
+            glGenTextures(1, &texID);
+            glBindTexture(GL_TEXTURE_2D, texID);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glGenerateMipmap(GL_TEXTURE_2D);
+            stbi_image_free(data);
+            return texID;
+        }
+
+        // Load all textures referenced in the GLTF file
+        void loadGLTFTextures(const std::string& baseDir) {
+            gltfTextureIDs.clear();
+            for (const auto& image : model.images) {
+                std::string texPath = baseDir + "/" + image.uri;
+                GLuint texID = loadTextureFromFile(texPath);
+                gltfTextureIDs.push_back(texID);
+            }
+        }
     GLuint mvpMatrixID;
     GLuint jointMatricesID;
     GLuint lightPositionID;
@@ -997,12 +1028,15 @@ struct MyBot {
     }
 
     void initialize() {
-        if (!loadModel(model, "../project/model/bot/bot.gltf")) {
+        std::string gltfPath = "../project/model/dragonball_online_goku_ssj3/scene.gltf";
+        if (!loadModel(model, gltfPath.c_str())) {
             return;
         }
         primitiveObjects = bindModel(model);
         skinObjects = prepareSkinning(model);
         animationObjects = prepareAnimation(model);
+        // Load all textures from the Goku GLTF's textures folder
+        loadGLTFTextures("../project/model/dragonball_online_goku_ssj3/ssj3.png_baseColor.png");
 
         // Enhanced shader with PBR-style lighting
         const char* vsSource = R"(
@@ -1048,81 +1082,44 @@ struct MyBot {
             in vec3 worldPosition;
             in vec3 worldNormal;
             in vec2 fragUV;
-            
             out vec4 finalColor;
-            
             uniform vec3 lightPosition;
             uniform vec3 lightIntensity;
             uniform vec3 viewPos;
-            uniform vec3 baseColor;
             uniform int worldType;
-            
+            uniform sampler2D baseColorTex;
+            uniform sampler2D normalTex;
+            uniform sampler2D metallicRoughnessTex;
             void main() {
-                // Material colors based on UV/position for variety
-                vec3 jointColor = vec3(0.15, 0.21, 0.22);   // Dark metallic joints
-                vec3 bodyColor = vec3(0.1, 0.42, 0.52);      // Teal body
-                
-                // Use position to determine body vs joints
-                float bodyFactor = smoothstep(-0.3, 0.3, worldNormal.y);
-                vec3 matColor = mix(jointColor, bodyColor, bodyFactor);
-                matColor = mix(matColor, baseColor, 0.3);  // Blend with uniform base
-                
+                vec3 baseColor = texture(baseColorTex, fragUV).rgb;
                 // Lighting calculation
                 vec3 N = normalize(worldNormal);
                 vec3 L = normalize(lightPosition - worldPosition);
                 vec3 V = normalize(viewPos - worldPosition);
                 vec3 H = normalize(L + V);
-                
                 // Ambient
-                vec3 ambient = 0.15 * matColor;
-                
-                // World-specific ambient adjustment
-                if (worldType == 1) {
-                    // Space - darker ambient with slight blue tint
-                    ambient = 0.08 * matColor + vec3(0.02, 0.03, 0.05);
-                } else if (worldType == 2) {
-                    // Chrome - reflective ambient
-                    ambient = 0.25 * matColor + vec3(0.1, 0.1, 0.15);
-                } else if (worldType == 3) {
-                    // Speedforce - warm energy glow
-                    ambient = 0.2 * matColor + vec3(0.1, 0.05, 0.0);
-                } else if (worldType == 4) {
-                    // Hall of Mirrors - golden warm light
-                    ambient = 0.2 * matColor + vec3(0.08, 0.06, 0.02);
-                }
-                
-                // Diffuse (half-lambert for softer shadows)
+                vec3 ambient = 0.15 * baseColor;
+                if (worldType == 1) ambient = 0.08 * baseColor + vec3(0.02, 0.03, 0.05);
+                else if (worldType == 2) ambient = 0.25 * baseColor + vec3(0.1, 0.1, 0.15);
+                else if (worldType == 3) ambient = 0.2 * baseColor + vec3(0.1, 0.05, 0.0);
+                else if (worldType == 4) ambient = 0.2 * baseColor + vec3(0.08, 0.06, 0.02);
                 float NdotL = dot(N, L);
                 float diffuseFactor = NdotL * 0.5 + 0.5;
                 diffuseFactor = diffuseFactor * diffuseFactor;
-                vec3 diffuse = diffuseFactor * matColor * lightIntensity * 0.0000001;
-                
-                // Specular (Blinn-Phong with metallic look)
+                vec3 diffuse = diffuseFactor * baseColor * lightIntensity * 0.0000001;
                 float NdotH = max(dot(N, H), 0.0);
                 float spec = pow(NdotH, 64.0);
                 vec3 specular = vec3(0.5) * spec;
-                
-                // Fresnel rim lighting
                 float fresnel = 1.0 - max(dot(N, V), 0.0);
                 fresnel = pow(fresnel, 3.0);
                 vec3 rimColor = vec3(0.4, 0.6, 0.8);
-                
-                // World-specific rim colors
-                if (worldType == 2) rimColor = vec3(0.8, 0.8, 0.9);  // Chrome
-                else if (worldType == 3) rimColor = vec3(1.0, 0.6, 0.2);  // Speedforce orange
-                else if (worldType == 4) rimColor = vec3(0.9, 0.8, 0.5);  // Golden
-                
+                if (worldType == 2) rimColor = vec3(0.8, 0.8, 0.9);
+                else if (worldType == 3) rimColor = vec3(1.0, 0.6, 0.2);
+                else if (worldType == 4) rimColor = vec3(0.9, 0.8, 0.5);
                 vec3 rim = rimColor * fresnel * 0.5;
-                
-                // Combine
                 vec3 color = ambient + diffuse + specular + rim;
-                
-                // Tone mapping
                 color = color / (1.0 + color);
-                
-                // Gamma correction
                 color = pow(color, vec3(1.0 / 2.2));
-                
                 finalColor = vec4(color, 1.0);
             }
         )";
@@ -1264,20 +1261,39 @@ struct MyBot {
         glUseProgram(programID);
         glUniformMatrix4fv(mvpMatrixID, 1, GL_FALSE, &mvp[0][0]);
         glUniformMatrix4fv(glGetUniformLocation(programID, "modelMatrix"), 1, GL_FALSE, &modelMat[0][0]);
-
         if (!skinObjects.empty() && jointMatricesID != -1) {
             const SkinObject &skinObject = skinObjects[0];
             if (!skinObject.jointMatrices.empty()) {
                 glUniformMatrix4fv(jointMatricesID, (GLsizei)skinObject.jointMatrices.size(), GL_FALSE, glm::value_ptr(skinObject.jointMatrices[0]));
             }
         }
-
         glUniform3fv(lightPositionID, 1, &lightPos[0]);
         glUniform3fv(lightIntensityID, 1, &lightInt[0]);
         glUniform3fv(viewPosID, 1, &viewPosition[0]);
-        glUniform3f(baseColorID, 0.2f, 0.5f, 0.7f);  // Base teal color
         glUniform1i(worldTypeID, worldType);
 
+        // Bind textures for the first material (for now, use the first baseColor, normal, metallicRoughness)
+        // TODO: For full support, bind per-primitive/material
+        GLint baseColorLoc = glGetUniformLocation(programID, "baseColorTex");
+        GLint normalLoc = glGetUniformLocation(programID, "normalTex");
+        GLint mrLoc = glGetUniformLocation(programID, "metallicRoughnessTex");
+        // Default to first texture for each type
+        int baseColorIdx = 0, normalIdx = 2, mrIdx = 1;
+        if (gltfTextureIDs.size() > 0) {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, gltfTextureIDs[baseColorIdx]);
+            glUniform1i(baseColorLoc, 0);
+        }
+        if (gltfTextureIDs.size() > 2) {
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, gltfTextureIDs[normalIdx]);
+            glUniform1i(normalLoc, 1);
+        }
+        if (gltfTextureIDs.size() > 1) {
+            glActiveTexture(GL_TEXTURE2);
+            glBindTexture(GL_TEXTURE_2D, gltfTextureIDs[mrIdx]);
+            glUniform1i(mrLoc, 2);
+        }
         drawModel(primitiveObjects, model);
     }
 
@@ -6161,22 +6177,18 @@ int main() {
         model = glm::rotate(model, glm::radians(characterRotZ), glm::vec3(0, 0, 1));
         
         if (useGLTFBot) {
-            // Use animated GLTF bot model
-            // Rotate 180 degrees around Y to face north
+            // Use animated GLTF black boy model
+            // (Remove bot-specific scale/offsets)
+            // Optionally: rotate to face north and add tilt for movement
             model = glm::rotate(model, glm::radians(180.0f), glm::vec3(0, 1, 0));
-            // Rotate 90 degrees around X to lay flat (diving pose)
-            model = glm::rotate(model, glm::radians(90.0f), glm::vec3(1, 0, 0));
-            // Add forward tilt (leaning into the dive)
             model = glm::rotate(model, glm::radians(15.0f), glm::vec3(1, 0, 0));
-            // Tilt based on movement direction (lean into movement)
-            float tiltAmount = 25.0f;  // Max tilt angle in degrees
-            float tiltX = glm::clamp(characterVel.z * 0.5f, -tiltAmount, tiltAmount);  // Forward/back tilt
-            float tiltZ = glm::clamp(characterVel.x * 0.5f, -tiltAmount, tiltAmount);  // Left/right tilt (swapped)
+            float tiltAmount = 25.0f;
+            float tiltX = glm::clamp(characterVel.z * 0.5f, -tiltAmount, tiltAmount);
+            float tiltZ = glm::clamp(characterVel.x * 0.5f, -tiltAmount, tiltAmount);
             model = glm::rotate(model, glm::radians(tiltX), glm::vec3(1, 0, 0));
             model = glm::rotate(model, glm::radians(tiltZ), glm::vec3(0, 0, 1));
-            model = glm::scale(model, glm::vec3(0.04f));  // GLTF model is much larger
-            // Center the model - the GLTF has a root offset of ~(-280, -105, 0)
-            model = glm::translate(model, glm::vec3(280.0f, 105.0f, 0.0f));  // Counter the root offset
+            // Use neutral scale for black boy model
+            model = glm::scale(model, glm::vec3(1.0f));
             glm::mat4 mvp = proj * view * model;
             
             // Light position based on world

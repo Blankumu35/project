@@ -28,7 +28,7 @@ static int windowHeight = 768;
 static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode);
 
 // Camera
-static glm::vec3 eye_center(0.0f, 100.0f, 800.0f);
+static glm::vec3 eye_center(0.0f, 100.0f, 300.0f);
 static glm::vec3 lookat(0.0f, 0.0f, 0.0f);
 static glm::vec3 up(0.0f, 1.0f, 0.0f);
 static float FoV = 45.0f;
@@ -43,130 +43,6 @@ static glm::vec3 lightPosition(-275.0f, 500.0f, 800.0f);
 static bool playAnimation = true;
 static float playbackSpeed = 2.0f;
 
-// The Particle structure
-struct Particle {
-    glm::vec3 Position;
-    glm::vec3 Velocity;
-    glm::vec4 Color;
-    float Life;
-    float Size;
-    float CameraDistance;
-
-    // Operator overloading for sorting (if needed later)
-    bool operator<(const Particle& that) const {
-        return this->CameraDistance > that.CameraDistance;
-    }
-};
-
-// The Aura System Class
-class AuraSystem {
-public:
-    std::vector<Particle> particles;
-    int maxParticles;
-    GLuint VAO, VBO;
-    GLuint programID;
-    GLuint mvpID, colorID;
-
-    AuraSystem() { maxParticles = 1000; } // Constructor
-    void initialize();
-    void update(float deltaTime, glm::vec3 charPos, float currentAura);
-    void render(glm::mat4 view, glm::mat4 proj);
-};
-
-void AuraSystem::initialize() {
-    // Simple quad for the particle
-    float vertices[] = {
-            -0.5f, -0.5f, 0.0f,
-            0.5f, -0.5f, 0.0f,
-            -0.5f,  0.5f, 0.0f,
-            0.5f, -0.5f, 0.0f,
-            0.5f,  0.5f, 0.0f,
-            -0.5f,  0.5f, 0.0f
-    };
-
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    // Load shaders from the separate shader files
-    // Ensure "particle.vert" and "particle.frag" exist in your shader folder!
-    programID = LoadShadersFromFile("../project/shader/particle.vert", "../project/shader/particle.frag");
-    mvpID = glGetUniformLocation(programID, "MVP");
-    colorID = glGetUniformLocation(programID, "particleColor");
-}
-
-void AuraSystem::update(float deltaTime, glm::vec3 charPos, float currentAura) {
-    // Spawn particles
-    int newParticles = (int)(deltaTime * 1000.0f * currentAura);
-    if (currentAura > 0.1f && newParticles == 0) newParticles = 1;
-
-    for (int i = 0; i < newParticles; i++) {
-        if (particles.size() < maxParticles) {
-            Particle p;
-            
-            // 1. MAKE IT WIDER (Spread)
-            // Increased multiplier from 30.0f to 50.0f so particles spawn further out
-            float rX = ((rand() % 100) / 50.0f - 1.0f) * 20.0f; 
-            float rZ = ((rand() % 100) / 50.0f - 1.0f) * 20.0f;
-            
-            p.Position = charPos + glm::vec3(rX, 10.0f, rZ); 
-            p.Velocity = glm::vec3(0.0f, 50.0f + (currentAura * 100.0f), 0.0f); 
-            // Color shifts from Red (low energy) to Gold (Super Saiyan)
-            p.Color = glm::mix(glm::vec4(1.0, 0.2, 0.0, 1.0), glm::vec4(1.0, 0.9, 0.2, 1.0), currentAura);
-            p.Life = 1.0f;
-            p.Size = 10.0f + (currentAura * 20.0f); 
-            particles.push_back(p);
-        }
-    }
-
-    // Update physics
-    for (int i = 0; i < particles.size(); i++) {
-        Particle &p = particles[i];
-        p.Life -= deltaTime * 2.0f; 
-        p.Position += p.Velocity * deltaTime;
-        p.Color.a = p.Life;
-
-        if (p.Life <= 0.0f) {
-            particles.erase(particles.begin() + i);
-            i--;
-        }
-    }
-}
-
-void AuraSystem::render(glm::mat4 view, glm::mat4 proj) {
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE); // Additive blending
-    glDepthMask(GL_FALSE); // Don't write to depth buffer
-
-    glUseProgram(programID);
-    glBindVertexArray(VAO);
-
-    for (const Particle &p : particles) {
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, p.Position);
-        
-        // Billboarding: Cancel rotation
-        model[0][0] = view[0][0]; model[0][1] = view[1][0]; model[0][2] = view[2][0];
-        model[1][0] = view[0][1]; model[1][1] = view[1][1]; model[1][2] = view[2][1];
-        model[2][0] = view[0][2]; model[2][1] = view[1][2]; model[2][2] = view[2][2];
-        
-        model = glm::scale(model, glm::vec3(p.Size));
-
-        glm::mat4 mvp = proj * view * model;
-
-        glUniformMatrix4fv(mvpID, 1, GL_FALSE, &mvp[0][0]);
-        glUniform4fv(colorID, 1, &p.Color[0]);
-
-        glDrawArrays(GL_TRIANGLES, 0, 6);
-    }
-
-    glDepthMask(GL_TRUE); // Restore depth buffer
-    glDisable(GL_BLEND);
-}
 
 struct MyBot {
 	// Shader variable IDs
@@ -175,6 +51,10 @@ struct MyBot {
 	GLuint lightPositionID;
 	GLuint lightIntensityID;
 	GLuint programID;
+	GLuint baseColorTexID;
+	GLuint viewPosID;
+	GLuint modelMatrixID;
+	GLuint baseColorTexGL = 0;
 
 	tinygltf::Model model;
 
@@ -540,56 +420,95 @@ for (size_t j = 0; j < skin.joints.size(); ++j) {
 }
 
 
-	bool loadModel(tinygltf::Model &model, const char *filename) {
-		tinygltf::TinyGLTF loader;
-		std::string err;
-		std::string warn;
+	   bool loadModel(tinygltf::Model &model, const char *filename) {
+		   tinygltf::TinyGLTF loader;
+		   std::string err;
+		   std::string warn;
 
-		bool res = loader.LoadASCIIFromFile(&model, &err, &warn, filename);
-		if (!warn.empty()) {
-			std::cout << "WARN: " << warn << std::endl;
-		}
+		   bool res = loader.LoadASCIIFromFile(&model, &err, &warn, filename);
+		   if (!warn.empty()) {
+			   std::cout << "WARN: " << warn << std::endl;
+		   }
 
-		if (!err.empty()) {
-			std::cout << "ERR: " << err << std::endl;
-		}
+		   if (!err.empty()) {
+			   std::cout << "ERR: " << err << std::endl;
+		   }
 
-		if (!res)
-			std::cout << "Failed to load glTF: " << filename << std::endl;
-		else
-			std::cout << "Loaded glTF: " << filename << std::endl;
+		   if (!res)
+			   std::cout << "Failed to load glTF: " << filename << std::endl;
+		   else {
+			   std::cout << "Loaded glTF: " << filename << std::endl;
+			   std::cout << "Meshes: " << model.meshes.size() << ", Nodes: " << model.nodes.size() << std::endl;
+			   // Print mesh bounds
+			   for (size_t i = 0; i < model.meshes.size(); ++i) {
+				   const auto& mesh = model.meshes[i];
+				   std::cout << "Mesh " << i << " primitives: " << mesh.primitives.size() << std::endl;
+				   for (size_t j = 0; j < mesh.primitives.size(); ++j) {
+					   const auto& prim = mesh.primitives[j];
+					   auto it = prim.attributes.find("POSITION");
+					   if (it != prim.attributes.end()) {
+						   const auto& accessor = model.accessors[it->second];
+						   std::cout << "  Primitive " << j << " POSITION min: ";
+						   for (auto v : accessor.minValues) std::cout << v << " ";
+						   std::cout << ", max: ";
+						   for (auto v : accessor.maxValues) std::cout << v << " ";
+						   std::cout << std::endl;
+					   }
+				   }
+			   }
+		   }
+		   return res;
+	   }
 
-		return res;
-	}
+	   void initialize() {
+		   // Load the bot model
+		   if (!loadModel(model, "../project/model/bot/bot.gltf")) {
+			   return;
+		   }
 
-	void initialize() {
-		// Modify your path if needed
-		if (!loadModel(model, "../project/model/bot/bot.gltf")) {
-			return;
-		}
+		   // Prepare buffers for rendering 
+		   primitiveObjects = bindModel(model);
 
-		// Prepare buffers for rendering 
-		primitiveObjects = bindModel(model);
+		   // Prepare joint matrices
+		   skinObjects = prepareSkinning(model);
 
-		// Prepare joint matrices
-		skinObjects = prepareSkinning(model);
+		   // Prepare animation data 
+		   animationObjects = prepareAnimation(model);
 
-		// Prepare animation data 
-		animationObjects = prepareAnimation(model);
+		   // Create and compile our GLSL program from the shaders
+		   programID = LoadShadersFromFile("../project/shader/black_boy.vert", "../project/shader/black_boy.frag");
+		   if (programID == 0)
+		   {
+			   std::cerr << "Failed to load shaders." << std::endl;
+		   }
 
-		// Create and compile our GLSL program from the shaders
-		programID = LoadShadersFromFile("../project/shader/bot.vert", "../project/shader/bot.frag");
-		if (programID == 0)
-		{
-			std::cerr << "Failed to load shaders." << std::endl;
-		}
+		   // Get a handle for GLSL variables
+		   mvpMatrixID = glGetUniformLocation(programID, "MVP");
+		   lightPositionID = glGetUniformLocation(programID, "lightPosition");
+		   lightIntensityID = glGetUniformLocation(programID, "lightIntensity");
+		   jointMatricesID = glGetUniformLocation(programID, "jointMatrices");
+		   baseColorTexID = glGetUniformLocation(programID, "baseColorTex");
+		   viewPosID = glGetUniformLocation(programID, "viewPos");
+		   modelMatrixID = glGetUniformLocation(programID, "modelMatrix");
 
-		// Get a handle for GLSL variables
-		mvpMatrixID = glGetUniformLocation(programID, "MVP");
-		lightPositionID = glGetUniformLocation(programID, "lightPosition");
-		lightIntensityID = glGetUniformLocation(programID, "lightIntensity");
-		jointMatricesID = glGetUniformLocation(programID, "jointMatrices");
-	}
+		   // --- Load black boy's base color texture manually ---
+		   int texWidth, texHeight, texChannels;
+		   unsigned char* texData = stbi_load("../project/model/black_boy_rigged_ready_for_ue4/textures/black_boy_baseColor.png", &texWidth, &texHeight, &texChannels, 0);
+		   if (texData) {
+			   glGenTextures(1, &baseColorTexGL);
+			   glBindTexture(GL_TEXTURE_2D, baseColorTexGL);
+			   GLenum format = GL_RGBA;
+			   if (texChannels == 3) format = GL_RGB;
+			   glTexImage2D(GL_TEXTURE_2D, 0, format, texWidth, texHeight, 0, format, GL_UNSIGNED_BYTE, texData);
+			   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+			   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			   glGenerateMipmap(GL_TEXTURE_2D);
+			   glBindTexture(GL_TEXTURE_2D, 0);
+			   stbi_image_free(texData);
+		   } else {
+			   std::cerr << "Failed to load black boy baseColor texture!" << std::endl;
+		   }
+	   }
 
 	void bindMesh(std::vector<PrimitiveObject> &primitiveObjects,
 				tinygltf::Model &model, tinygltf::Mesh &mesh) {
@@ -736,37 +655,51 @@ for (size_t j = 0; j < skin.joints.size(); ++j) {
 	}
 
 	void render(glm::mat4 cameraMatrix) {
-		glUseProgram(programID);
-		
-		// Set camera
-		glm::mat4 mvp = cameraMatrix;
-		glUniformMatrix4fv(mvpMatrixID, 1, GL_FALSE, &mvp[0][0]);
+		   glUseProgram(programID);
 
-		// -----------------------------------------------------------------
-// Send joint matrices for linear blend skinning
-// -----------------------------------------------------------------
-if (!skinObjects.empty() && jointMatricesID != -1) {
-	const SkinObject &skinObject = skinObjects[0];
-	if (!skinObject.jointMatrices.empty()) {
-		glUniformMatrix4fv(
-			jointMatricesID,
-			static_cast<GLsizei>(skinObject.jointMatrices.size()),
-			GL_FALSE,
-			glm::value_ptr(skinObject.jointMatrices[0])
-		);
-	}
-}
+		   // Set camera
+		   glm::mat4 mvp = cameraMatrix;
+		   glUniformMatrix4fv(mvpMatrixID, 1, GL_FALSE, &mvp[0][0]);
 
-		
 
-		// -----------------------------------------------------------------
+		   // Use identity model matrix (no centering/scaling)
+		   glm::mat4 modelMatrix = glm::scale(glm::mat4(1.0f), glm::vec3(1.0f));
+		   glUniformMatrix4fv(modelMatrixID, 1, GL_FALSE, &modelMatrix[0][0]);
 
-		// Set light data 
-		glUniform3fv(lightPositionID, 1, &lightPosition[0]);
-		glUniform3fv(lightIntensityID, 1, &lightIntensity[0]);
+		   // Set view position (camera eye)
+		   glUniform3fv(viewPosID, 1, &eye_center[0]);
 
-		// Draw the GLTF model
-		drawModel(primitiveObjects, model);
+		   // Send joint matrices for linear blend skinning
+		   if (!skinObjects.empty() && jointMatricesID != -1) {
+			   const SkinObject &skinObject = skinObjects[0];
+			   if (!skinObject.jointMatrices.empty()) {
+				   glUniformMatrix4fv(
+					   jointMatricesID,
+					   static_cast<GLsizei>(skinObject.jointMatrices.size()),
+					   GL_FALSE,
+					   glm::value_ptr(skinObject.jointMatrices[0])
+				   );
+			   }
+		   }
+
+		   // Set light data 
+		   glUniform3fv(lightPositionID, 1, &lightPosition[0]);
+		   glUniform3fv(lightIntensityID, 1, &lightIntensity[0]);
+
+		   // Bind base color texture
+		   if (baseColorTexGL) {
+			   glActiveTexture(GL_TEXTURE0);
+			   glBindTexture(GL_TEXTURE_2D, baseColorTexGL);
+			   glUniform1i(baseColorTexID, 0);
+		   }
+
+		   // Draw the GLTF model
+		   drawModel(primitiveObjects, model);
+
+		   // Unbind texture
+		   if (baseColorTexGL) {
+			   glBindTexture(GL_TEXTURE_2D, 0);
+		   }
 	}
 
 	void cleanup() {
@@ -820,18 +753,14 @@ int main(void)
 	MyBot bot;
 	bot.initialize();
 
-	// Aura system
-	AuraSystem aura;
-	aura.initialize();
-
 	// Camera setup
-    glm::mat4 viewMatrix, projectionMatrix;
+	glm::mat4 viewMatrix, projectionMatrix;
 	projectionMatrix = glm::perspective(glm::radians(FoV), (float)windowWidth / windowHeight, zNear, zFar);
 
 	// Time and frame rate tracking
 	static double lastTime = glfwGetTime();
-	float time = 0.0f;			// Animation time 
-	float fTime = 0.0f;			// Time for measuring fps
+	float time = 0.0f;            // Animation time 
+	float fTime = 0.0f;            // Time for measuring fps
 	unsigned long frames = 0;
 
 	// Main loop
@@ -840,8 +769,8 @@ int main(void)
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		// Update states for animation
-        double currentTime = glfwGetTime();
-        float deltaTime = float(currentTime - lastTime);
+		double currentTime = glfwGetTime();
+		float deltaTime = float(currentTime - lastTime);
 		lastTime = currentTime;
 
 		if (playAnimation) {
@@ -849,26 +778,20 @@ int main(void)
 			bot.update(time);
 		}
 
-		// Update aura
-		aura.update(deltaTime, glm::vec3(0,0,0), 1.0f);
-
 		// Rendering
 		viewMatrix = glm::lookAt(eye_center, lookat, up);
 		glm::mat4 vp = projectionMatrix * viewMatrix;
 		bot.render(vp);
 
-		// Render aura
-		aura.render(viewMatrix, projectionMatrix);
-
 		// FPS tracking 
 		// Count number of frames over a few seconds and take average
 		frames++;
 		fTime += deltaTime;
-		if (fTime > 2.0f) {		
+		if (fTime > 2.0f) {        
 			float fps = frames / fTime;
 			frames = 0;
 			fTime = 0;
-			
+            
 			std::stringstream stream;
 			stream << std::fixed << std::setprecision(2) << "Lab 4 | Frames per second (FPS): " << fps;
 			glfwSetWindowTitle(window, stream.str().c_str());
