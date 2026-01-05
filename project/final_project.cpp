@@ -1287,7 +1287,7 @@ struct MyBot {
 };
 
 static MyBot bot;
-static bool useGLTFBot = false;  // Toggle between GLTF and simple box character
+static bool useGLTFBot = true;  // Toggle between GLTF and simple box character
 
 // ---------------------------------------------------------------------------
 // Skybox
@@ -5518,27 +5518,41 @@ static void RenderMirrorReflection(int mirrorIndex, const glm::vec3& cameraPos, 
     glDrawArrays(GL_TRIANGLES, 0, 36);
     glDepthFunc(GL_LESS);
     
-    // Draw reflected character
-    glUseProgram(charProg);
-    
-    // Reflect the character's model matrix
-    glm::mat4 charModel = glm::mat4(1.0f);
-    charModel = glm::translate(charModel, reflectedCharPos);
-    // Mirror the rotation based on the mirror normal
-    charModel = glm::rotate(charModel, glm::radians(-characterRotX), glm::vec3(1, 0, 0));
-    charModel = glm::rotate(charModel, glm::radians(characterRotZ), glm::vec3(0, 0, 1));
-    // Flip along mirror normal axis
-    charModel = glm::scale(charModel, glm::vec3(1.5f, 1.5f, 1.5f));
-    
-    glUniformMatrix4fv(glGetUniformLocation(charProg, "uModel"), 1, GL_FALSE, glm::value_ptr(charModel));
-    glUniformMatrix4fv(glGetUniformLocation(charProg, "uView"), 1, GL_FALSE, glm::value_ptr(reflView));
-    glUniformMatrix4fv(glGetUniformLocation(charProg, "uProj"), 1, GL_FALSE, glm::value_ptr(proj));
-    glUniform3f(glGetUniformLocation(charProg, "uLightDir"), 0.3f, 0.9f, 0.2f);
-    glUniform1f(glGetUniformLocation(charProg, "uReflection"), 0.0f);
-    glUniform3fv(glGetUniformLocation(charProg, "uViewPos"), 1, glm::value_ptr(reflectedCamPos));
-    
-    glBindVertexArray(charVAO);
-    glDrawElements(GL_TRIANGLES, charIdxCount, GL_UNSIGNED_INT, 0);
+    // Draw reflected character or bot
+    if (useGLTFBot) {
+        // Use animated GLTF bot model (mirror the main scene logic)
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, reflectedCharPos);
+        model = glm::rotate(model, glm::radians(180.0f), glm::vec3(0, 1, 0));
+        model = glm::rotate(model, glm::radians(90.0f), glm::vec3(1, 0, 0));
+        model = glm::rotate(model, glm::radians(15.0f), glm::vec3(1, 0, 0));
+        float tiltAmount = 25.0f;
+        float tiltX = glm::clamp(characterVel.z * 0.5f, -tiltAmount, tiltAmount);
+        float tiltZ = glm::clamp(characterVel.x * 0.5f, -tiltAmount, tiltAmount);
+        model = glm::rotate(model, glm::radians(tiltX), glm::vec3(1, 0, 0));
+        model = glm::rotate(model, glm::radians(tiltZ), glm::vec3(0, 0, 1));
+        model = glm::scale(model, glm::vec3(0.04f));
+        model = glm::translate(model, glm::vec3(280.0f, 105.0f, 0.0f));
+        glm::mat4 mvp = proj * reflView * model;
+        glm::vec3 lightPos = reflectedCharPos + glm::vec3(0.0f, 150.0f, 0.0f);
+        glm::vec3 lightInt(6e6f, 5e6f, 3e6f);
+        bot.render(mvp, model, reflectedCamPos, lightPos, lightInt, currentWorld);
+    } else {
+        glUseProgram(charProg);
+        glm::mat4 charModel = glm::mat4(1.0f);
+        charModel = glm::translate(charModel, reflectedCharPos);
+        charModel = glm::rotate(charModel, glm::radians(-characterRotX), glm::vec3(1, 0, 0));
+        charModel = glm::rotate(charModel, glm::radians(characterRotZ), glm::vec3(0, 0, 1));
+        charModel = glm::scale(charModel, glm::vec3(1.5f, 1.5f, 1.5f));
+        glUniformMatrix4fv(glGetUniformLocation(charProg, "uModel"), 1, GL_FALSE, glm::value_ptr(charModel));
+        glUniformMatrix4fv(glGetUniformLocation(charProg, "uView"), 1, GL_FALSE, glm::value_ptr(reflView));
+        glUniformMatrix4fv(glGetUniformLocation(charProg, "uProj"), 1, GL_FALSE, glm::value_ptr(proj));
+        glUniform3f(glGetUniformLocation(charProg, "uLightDir"), 0.3f, 0.9f, 0.2f);
+        glUniform1f(glGetUniformLocation(charProg, "uReflection"), 0.0f);
+        glUniform3fv(glGetUniformLocation(charProg, "uViewPos"), 1, glm::value_ptr(reflectedCamPos));
+        glBindVertexArray(charVAO);
+        glDrawElements(GL_TRIANGLES, charIdxCount, GL_UNSIGNED_INT, 0);
+    }
     
     // Unbind framebuffer
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
